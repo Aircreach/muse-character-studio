@@ -1,0 +1,1 @@
+{"compilerOptions":{"esModuleInterop":true,"forceConsistentCasingInFileNames":true,"isolatedModules":true,"lib":["ES2023"],"module":"ESNext","moduleResolution":"bundler","noEmit":true,"noUnusedLocals":true,"noUnusedParameters":true,"skipLibCheck":true,"strict":true,"target":"ES2023","types":["bun-types"]},"include":["src","dev-full.ts"]}

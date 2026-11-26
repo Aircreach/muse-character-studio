@@ -16,10 +16,12 @@ Premium Creative Studio 风格的 Muse 角色工作室前端重写：Apple 风�
 
 ```bash
 cd ~/workspace/projects/muse-character-studio
-bun install        # 已跑过：110 个包，23.16s
-bun run dev        # Vite 开发服务器，http://localhost:5173
-bun run typecheck  # tsc --noEmit
-bun run build      # tsc --noEmit + vite build
+bun install        # 已跑过：110 个包，23.16s（后端还原后新增 bun-types，见第十二节）
+bun run dev:full   # 前端 5173 + 本地后端 8787 一起起，打开 http://localhost:5173
+bun run dev        # 只起前端（没有后端，角色库会加载失败；不要单独这样跑）
+bun run dev:server # 只起后端，http://localhost:8787/health
+bun run typecheck  # 前端 tsc + 服务端 tsc（tsconfig.server.json）
+bun run build      # tsc（前端+服务端）+ vite build
 ```
 
 技术栈：React 19 + TypeScript + Tailwind CSS 4 + @tanstack/react-query 5 +
@@ -153,15 +155,26 @@ Workspace 用 `key={view.id}`，离开再返回也会重置。
 ## 六、数据接口契约（api.ts，30 个动作）
 
 `createActionClient<typeof Actions>()`，POST `./actions`，变更后 invalidate
-`['studio']` 与 `['profile', id]`。动作清单（请求/响应见 `api.ts`）：
+`['studio']` 与 `['profile', id]`。动作清单以线上真实发布的 30 个为准
+（请求 schema 见 `server/BACKEND.md`，类型见 `api.ts`）：
 
-seedStudio、getStudio、getCapabilities、getProfileDetail、createProfile、
-updateProfile、toggleFavorite、archiveProfile、restoreProfile、deleteProfile、
-duplicateProfile、saveSettings、getSettingsText、uploadAsset、importRuntimeBase、
-selectAsset、deleteAsset、deleteCandidate、generateAsset、adoptCandidate、
-discardCandidate、activateProfile、deactivateProfile、listActivations、
-exportProfile、importProfile、getRuntimeAssets、verifyAssetIntegrity、
-clearAvatar、listGenerationJobs。
+activateProfile、addStateDefinition、adoptCandidate、archiveProfile、
+createProfile、deactivateProfile、deleteAsset、deleteProfile、
+deleteStateDefinition、discardCandidate、duplicateProfile、exportProfile、
+generateAsset、getCapabilities、getProfileDetail、getStudio、importProfile、
+linkAssetToState、removeReference、restoreProfile、saveSettings、seedStudio、
+selectStateAsset、setCover、setReference、toggleFavorite、unlinkStateAsset、
+updateProfile、updateStateDefinition、uploadAsset。
+
+另外 9 个是本地兼容别名，线上不发布（`api.ts` 里标了 `[LOCAL ALIAS]`）：
+selectAsset（→selectStateAsset）、deleteCandidate（→discardCandidate）、
+getSettingsText、listActivations、listGenerationJobs、importRuntimeBase、
+getRuntimeAssets、verifyAssetIntegrity、clearAvatar。
+
+> 注意：旧版 `api.ts` 列的动作清单与线上不一致（多出上面 9 个别名，
+> 少了 add/update/deleteStateDefinition、link/unlinkStateAsset、setCover、
+> setReference、removeReference；且 getRuntimeAssets 在线上实测是不存在的动作）。
+> 后端还原时已按线上真实动作修正，差异见 `server/BACKEND.md`。
 
 关键契约不变：
 - `saveSettings`：32 个 ≤4000 字字段 + customFields ≤40 项，全量覆盖，返回整合文本。
@@ -195,7 +208,13 @@ clearAvatar、listGenerationJobs。
    **通过，exit 0**，141 个模块，`dist/index.html 0.41 kB`，
    `index-*.css 26.07 kB`，`index-*.js 335.05 kB`（gzip 104.73 kB）。
    构建产物 `dist/` 已删除，`.gitignore` 忽略 `node_modules/` 与 `dist/`。
-4. 未做：真机/浏览器人工验收、390px 真机复测、线上 artifact 替换。
+5. 后端（2026-11-26 新增，见第十二节）：`bun run typecheck`（前端 +
+   服务端）exit 0；`bun run build` exit 0；后端实测 45 项动作检查全过
+   （种子、设定读写、上传 SHA-256、激活守则、导出导入、MUSE_DEPENDENT
+   报错等），另 17 项补测通过 16 项（1 项是测试期望本身写错，已单独复核
+   实现正确），前端
+   `dev:full` 下经 Vite 代理调 getStudio 正常，api.ts 的 File→base64
+   转换单测通过。测试数据库已清空，首次启动是干净的。
 
 ## 九、如何应用到线上 artifact（需用户确认后才能做）
 
@@ -203,7 +222,7 @@ clearAvatar、listGenerationJobs。
 线上 `space:muse-character-studio` 未动。
 
 应用步骤（由主 agent 在用户确认后执行）：
-1. 用户确认本目录代码无误，或先在本地 `bun run dev` 看一遍。
+1. 用户确认本目录代码无误，或先在本地 `bun run dev:full` 看一遍。
 2. 用 `artifact.edit`（slug `muse-character-studio`）把本轮前端文件
    （`client/src/*`、`theme.css`）提交为新版本；后端 `server/src/*` 不动。
 3. 构建完成后在工作室里走验收清单（第十节），重点看 A/B 卡切换、
@@ -233,3 +252,29 @@ clearAvatar、listGenerationJobs。
    react-query 5.100.10 / zod 4.4.3），还是接受本次解析到的兼容新版。
 5. **seed 数据**：首开自动种入 A（原作人格，favorite=1）与 B（日常人格，favorite=0）
    两张同名卡，cover_asset_id 均为 null（用运行时 base 图作封面），是否保留。
+
+## 十二、后端（本地真后端，2026-11-26 新增）
+
+本地现在有能独立跑的真后端了，不再是只有前端。线上工作室的 30 个动作
+按线上请求 schema 与实测返回完整还原在 `server/src/` 里，数据存在本地
+SQLite，跑法见第二节（`bun run dev:full`）。
+
+- 入口：`server/src/http.ts`（Bun，端口 8787，`GET /health`、`POST /actions`、`GET /assets/…`）
+- 动作：`server/src/actions.ts`（线上 30 个真实动作 + 9 个本地兼容别名，见 `server/BACKEND.md`）
+- 模型：`server/src/schema.ts`（SQLite 建表与映射）、`server/src/seed.ts`（A/B 两张卡与 10 条状态定义，按线上实测原样）
+- Muse 依赖：`server/src/muse.ts`（generateAsset / clearAvatar / getRuntimeAssets / importRuntimeBase 的警告集中处）
+- 详细说明：`server/BACKEND.md`（动作清单、与线上差异、警告表、启动与重置方法）
+- 数据文件：`server/data/studio.db`（SQLite）与 `server/data/assets/`（素材文件），都在 `.gitignore` 里，不提交；删掉 `server/data/` 即重置回首开状态。
+
+⚠️ 有 4 个功能依托 Muse，本地跑不起来，设计上就是明确报错或返回 warning，
+绝不伪造（完整警告表见 `server/BACKEND.md`）：
+
+| 功能 | 本地表现 |
+| --- | --- |
+| 生成图片（generateAsset） | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败任务会记一条 error 记录 |
+| 读取 Muse 运行时形象（getRuntimeAssets） | 返回空结果 + warning，不编造运行时帧 |
+| 清除 Muse 头像（clearAvatar） | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 |
+| 一键导入运行时原图（importRuntimeBase） | 本地没有 base.webp 时报错；把原图放到 `server/data/runtime-base.webp` 后可导入，MD5 会核对 |
+
+线上工作室的数据与本地数据不互通：线上是线上的一套，本地是本地的一套，
+种子 id 相同但内容各自独立，改本地不会动线上。

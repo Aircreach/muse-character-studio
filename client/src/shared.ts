@@ -26,6 +26,7 @@ export interface Asset {
 }
 
 export interface StateDefinition {
+  id: string
   stateKey: string
   name: string
   description: string
