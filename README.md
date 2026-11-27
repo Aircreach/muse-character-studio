@@ -1,5 +1,7 @@
 # Muse Character Studio — 前端重写（本地）
 
+> **设计文档：[`docs/DESIGN.md`](docs/DESIGN.md)**——产品定位、模块地图、功能点清单、数据模型、关键流程、能力边界、文件索引、术语表。第一次拉下仓库先读它。
+>
 > 项目根目录：`~/workspace/projects/muse-character-studio/`
 > 旧位置 `~/workspace/muse-character-studio/` 已整体移入此处，`~/workspace/` 根目录下不再留该文件夹。
 > 本轮只重写前端，**不要动线上 artifact（space:muse-character-studio）**，线上应用前须经用户确认。
@@ -57,7 +59,7 @@ react-query 5.108.4、zod 4.6.7、TypeScript 5.9.3、Vite 7.3.8。
 │   │   ├── PreviewDialog.tsx     # 高清预览
 │   │   └── ConfirmDialog.tsx     # 危险操作确认
 │   └── assets/runtime/README.md  # base.webp 说明（不复制大图）
-└── server/src/CONTRACT.md        # 后端契约说明：本轮不动
+└── server/src/CONTRACT.md        # 后端契约说明（完整设计见 docs/DESIGN.md）
 ```
 
 线上 artifact 的旧前端只有 `App.tsx`（约 1000 行）、`Workspace.tsx`（约 1456 行）、
