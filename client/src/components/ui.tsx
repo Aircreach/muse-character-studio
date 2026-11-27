@@ -1,17 +1,18 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Slot } from '@radix-ui/react-slot'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Icon, type IconName } from './icons'
 
 /**
- * shadcn / Radix-style primitives, hand-written on Tailwind tokens.
- * No Ant Design / MUI runtime. Buttons are text + 1px border only —
- * no pill-capsule label piles, no low-contrast grey text.
+ * Theme primitives. Callers pass variant / size / tone.
+ * Visuals live in theme.css (Linear app chrome).
  */
 export type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger'
+export type ButtonSize = 'sm' | 'md'
 
 const buttonVariant: Record<ButtonVariant, string> = {
   primary: 'btn-primary',
-  accent: 'btn-accent',
+  accent: 'btn-primary',
   outline: 'btn-outline',
   ghost: 'btn-ghost',
   danger: 'btn-danger',
@@ -19,31 +20,120 @@ const buttonVariant: Record<ButtonVariant, string> = {
 
 export function Button({
   variant = 'outline',
+  size = 'md',
   asChild,
   className = '',
+  type,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; asChild?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant
+  size?: ButtonSize
+  asChild?: boolean
+}) {
   const Comp = asChild ? Slot : 'button'
-  return <Comp className={`btn ${buttonVariant[variant]} ${className}`} {...props} />
+  const classes = `btn btn-${size} ${buttonVariant[variant]} ${className}`.trim()
+  if (asChild) return <Comp className={classes} {...props} />
+  return <Comp className={classes} type={type ?? 'button'} {...props} />
 }
 
-export function StatusMark({
-  tone,
-  label,
+/** Cover image that collapses to `fallback` instead of the browser's broken-image icon. */
+export function MediaImage({
+  src,
+  alt,
+  className = 'media-img',
+  fallback = null,
 }: {
-  tone: 'good' | 'warn' | 'bad' | 'accent' | 'neutral'
-  label: string
+  src: string
+  alt: string
+  className?: string
+  fallback?: ReactNode
 }) {
-  const dot: Record<string, string> = {
-    good: 'bg-[#1a7f4b]',
-    warn: 'bg-[#9a6700]',
-    bad: 'bg-[#b3261e]',
-    accent: 'bg-[var(--color-accent)]',
-    neutral: 'bg-[var(--color-ink-4)]',
-  }
+  const [failed, setFailed] = useState(false)
+  if (failed) return <>{fallback}</>
+  return <img className={className} src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+}
+
+export function TextInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`field-input ${className}`.trim()} {...props} />
+}
+
+export function SearchInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[13px] text-[var(--color-ink-2)]">
-      <span className={`status-dot ${dot[tone]}`} aria-hidden />
+    <label className={`search-field ${className}`.trim()}>
+      <Icon name="search" />
+      <input className="field-input" {...props} />
+    </label>
+  )
+}
+
+export function TextArea({ className = '', ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`field-input field-area ${className}`.trim()} {...props} />
+}
+
+export function SelectInput({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`field-input ${className}`.trim()} {...props} />
+}
+
+export function Field({
+  label,
+  children,
+  wide,
+  className = '',
+}: {
+  label: string
+  children: ReactNode
+  wide?: boolean
+  className?: string
+}) {
+  return (
+    <label className={`field ${wide ? 'span-2' : ''} ${className}`.trim()}>
+      <span className="field-label">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+export function Panel({
+  title,
+  note,
+  children,
+  actions,
+  className = '',
+}: {
+  title?: string
+  note?: string
+  children: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <section className={`panel ${className}`.trim()}>
+      {title || actions ? (
+        <header className="panel-head">
+          <div>
+            {title ? <h2 className="panel-title">{title}</h2> : null}
+            {note ? <p className="panel-note">{note}</p> : null}
+          </div>
+          {actions}
+        </header>
+      ) : null}
+      <div className="panel-body">{children}</div>
+    </section>
+  )
+}
+
+const DOT = {
+  good: 'dot-good',
+  warn: 'dot-warn',
+  bad: 'dot-bad',
+  accent: 'dot-accent',
+  neutral: 'dot-neutral',
+} as const
+
+export function StatusMark({ tone, label }: { tone: keyof typeof DOT; label: string }) {
+  return (
+    <span className="status-mark">
+      <span className={`status-dot ${DOT[tone]}`} aria-hidden />
       {label}
     </span>
   )
@@ -56,18 +146,111 @@ export function Badge({
   tone?: 'neutral' | 'good' | 'warn' | 'accent'
   children: ReactNode
 }) {
-  const cls =
-    tone === 'good' ? 'badge-good' : tone === 'warn' ? 'badge-warn' : tone === 'accent' ? 'badge-accent' : 'badge-soft'
-  return <span className={cls}>{children}</span>
+  return <span className={`badge badge-${tone}`}>{children}</span>
 }
 
-export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+export function EmptyState({
+  title,
+  body,
+  action,
+  icon = 'mark',
+}: {
+  title: string
+  body: string
+  action?: ReactNode
+  icon?: IconName
+}) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface-2)] px-6 py-12 text-center">
-      <p className="text-[15px] font-medium text-[var(--color-ink)]">{title}</p>
-      <p className="mt-1 max-w-md text-sm text-[var(--color-ink-3)]">{body}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
+    <div className="empty">
+      <span className="empty-mark">
+        <Icon name={icon} size={20} />
+      </span>
+      <p className="empty-title">{title}</p>
+      <p className="empty-body">{body}</p>
+      {action ? <div className="cluster">{action}</div> : null}
     </div>
+  )
+}
+
+export function LoadingNote({ children }: { children: ReactNode }) {
+  return (
+    <div className="loading-note" role="status">
+      <span className="spinner" aria-hidden />
+      <p>{children}</p>
+    </div>
+  )
+}
+
+export function Notice({
+  tone = 'neutral',
+  floating,
+  children,
+}: {
+  tone?: 'neutral' | 'good'
+  floating?: boolean
+  children: ReactNode
+}) {
+  const toneClass = tone === 'good' ? 'notice notice-good' : 'notice'
+  return <div role="status" className={floating ? `${toneClass} notice-float` : toneClass}>{children}</div>
+}
+
+export function Segmented({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  className = '',
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: Array<{ value: string; label: string; icon?: IconName }>
+  ariaLabel: string
+  className?: string
+}) {
+  return (
+    <div className={`seg ${className}`.trim()} role="group" aria-label={ariaLabel}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className="seg-btn"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+        >
+          {o.icon ? <Icon name={o.icon} size={14} /> : null}
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function TabBar({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: Array<{ value: string; label: string; icon?: IconName }>
+  ariaLabel: string
+}) {
+  return (
+    <nav className="tabs" aria-label={ariaLabel}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className="tab"
+          aria-current={value === o.value ? 'page' : undefined}
+          onClick={() => onChange(o.value)}
+        >
+          {o.icon ? <Icon name={o.icon} size={15} /> : null}
+          {o.label}
+        </button>
+      ))}
+    </nav>
   )
 }
 
@@ -88,17 +271,13 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px]" />
-        <Dialog.Content
-          className={`fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-[var(--radius-xl)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-lg)] focus:outline-none ${
-            wide ? 'max-w-3xl' : 'max-w-lg'
-          }`}
-        >
-          <Dialog.Title className="font-display text-xl text-[var(--color-ink)]">{title}</Dialog.Title>
-          <div className="mt-3">{children}</div>
+        <Dialog.Overlay className="modal-overlay" />
+        <Dialog.Content className={`modal ${wide ? 'modal-wide' : 'modal-narrow'}`}>
+          <Dialog.Title className="modal-title">{title}</Dialog.Title>
+          <div className="modal-body">{children}</div>
           <Dialog.Close asChild>
-            <button type="button" aria-label="关闭" className="absolute right-4 top-4 rounded-md px-2 py-1 text-lg leading-none text-[var(--color-ink-3)] hover:bg-[var(--color-surface-3)]">
-              ×
+            <button type="button" aria-label="关闭" className="modal-close">
+              <Icon name="close" size={16} />
             </button>
           </Dialog.Close>
         </Dialog.Content>

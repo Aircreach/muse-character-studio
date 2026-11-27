@@ -14,11 +14,7 @@ export function PreviewDialog({
 }) {
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={label} wide>
-      {url ? (
-        <img src={url} alt={label} className="max-h-[70vh] w-full rounded-[var(--radius-lg)] object-contain bg-[var(--color-surface-3)]" />
-      ) : (
-        <p className="text-sm text-[var(--color-ink-3)]">暂无图片。</p>
-      )}
+      {url ? <img className="preview-img" src={url} alt={label} /> : <p className="meta">暂无图片。</p>}
     </Modal>
   )
 }

@@ -20,22 +20,24 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={title}>
-      <p className="text-sm leading-relaxed text-[var(--color-ink-2)]">{body}</p>
-      <p className="mt-2 text-xs text-[var(--color-ink-3)]">已激活配置引用的素材不可删除；删除角色卡前须先解除激活。</p>
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => onOpenChange(false)}>
-          取消
-        </Button>
-        <Button
-          variant="danger"
-          disabled={busy}
-          onClick={() => {
-            onConfirm()
-            onOpenChange(false)
-          }}
-        >
-          {busy ? '处理中…' : confirmLabel}
-        </Button>
+      <div className="stack-sm">
+        <p className="prose">{body}</p>
+        <p className="meta">已激活配置引用的素材不可删除；删除角色卡前须先解除激活。</p>
+        <div className="action-row end">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button
+            variant="danger"
+            disabled={busy}
+            onClick={() => {
+              onConfirm()
+              onOpenChange(false)
+            }}
+          >
+            {busy ? '处理中…' : confirmLabel}
+          </Button>
+        </div>
       </div>
     </Modal>
   )

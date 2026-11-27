@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, profileKey } from './api'
 import type { Asset } from './shared'
-import { Button, EmptyState } from './components/ui'
+import { Icon } from './components/icons'
+import { Badge, Button, EmptyState, LoadingNote, Notice, TabBar } from './components/ui'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { GalleryCard } from './components/GalleryCard'
 import { GeneratePanel } from './components/GeneratePanel'
@@ -12,19 +13,17 @@ import { SettingsForm } from './components/SettingsForm'
 
 type Tab = 'gallery' | 'settings' | 'generate' | 'references'
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'gallery', label: '状态画廊' },
-  { key: 'settings', label: '角色设定' },
-  { key: 'generate', label: '生成中心' },
-  { key: 'references', label: '参考素材' },
+const TABS: Array<{ value: Tab; label: string; icon: 'layers' | 'sliders' | 'spark' | 'image' }> = [
+  { value: 'gallery', label: '状态画廊', icon: 'layers' },
+  { value: 'settings', label: '角色设定', icon: 'sliders' },
+  { value: 'generate', label: '生成中心', icon: 'spark' },
+  { value: 'references', label: '参考素材', icon: 'image' },
 ]
 
 /**
- * Workspace — deliberately NOT keyed by profile id in App, and tabs do
- * not unmount each other: the active tab is rendered conditionally but
- * SettingsForm / GeneratePanel drafts live in localStorage (useDraft),
- * so switching tabs, switching profiles, or reloading never loses edits.
- * Technical IDs are hidden behind a <details> element.
+ * Workspace is not keyed by profile id. Tab bodies stay mounted only while
+ * selected; drafts live in localStorage, so switching tabs does not lose edits.
+ * Technical IDs stay behind a details element.
  */
 export function Workspace({
   profileId,
@@ -85,7 +84,6 @@ export function Workspace({
     },
   })
 
-  // Keep the tab in view on profile change without remounting the page.
   useEffect(() => {
     setTab('gallery')
     setActivationNote(null)
@@ -102,7 +100,7 @@ export function Workspace({
     milestone_level_up: '/assets/runtime/base.webp',
   }
 
-  if (detail.isLoading) return <p className="py-16 text-center text-sm text-[var(--color-ink-3)]">加载角色工作台…</p>
+  if (detail.isLoading) return <LoadingNote>加载角色工作台…</LoadingNote>
   if (detail.isError || !d) {
     return (
       <EmptyState
@@ -124,182 +122,195 @@ export function Workspace({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" onClick={onBack}>← 角色库</Button>
-        <button type="button" onClick={onOpenSystem} className="text-sm text-[var(--color-ink-3)] hover:text-[var(--color-ink)]">
-          系统设置 →
-        </button>
-      </div>
+    <div className="workbench view-enter">
+      <div className="workbench-stage stack">
+        <div className="stage-bar">
+          <Button variant="ghost" size="sm" onClick={onBack}><Icon name="arrowLeft" />角色库</Button>
+          <Button variant="ghost" size="sm" onClick={onOpenSystem}>系统设置<Icon name="arrowRight" /></Button>
+        </div>
 
-      <Hero
-        profile={d.profile}
-        isActive={d.isActive}
-        coverUrl={coverUrl}
-        activating={activate.isPending}
-        onActivate={() => activate.mutate()}
-        onEditProfile={() => setTab('settings')}
-      />
-      {activationNote ? (
-        <p role="status" className="rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-good-soft)] px-4 py-2.5 text-sm text-[var(--color-good)]">
-          {activationNote}
-        </p>
-      ) : null}
+        <TabBar
+          ariaLabel="工作台导航"
+          value={tab}
+          onChange={(next) => setTab(next as Tab)}
+          options={TABS}
+        />
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-[var(--color-line)]" aria-label="工作台导航">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            aria-current={tab === t.key}
-            className={`whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium ${tab === t.key ? 'tab-active' : 'tab-idle'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+        <div className="pane-scroll view-enter" key={tab}>
+        {tab === 'gallery' ? (
+          <section className="stack" aria-label="状态画廊">
+            <div className="cluster">
+              <h2 className="section-title">状态画廊</h2>
+              <Badge tone="accent">shared_base · 仅基础形象可同步</Badge>
+            </div>
+            <p className="prose">
+              基础形象展示当前选定素材；其余状态展示 Muse 实际运行时表现，自动驱动、无需手动配图。
+              未配置的本地素材不会伪装成 Muse 当前形象；需要对比时才显示双图对照。
+            </p>
+            <div className="gallery-grid">
+              {d.stateDefs.map((def) => (
+                <GalleryCard
+                  key={def.stateKey}
+                  def={def}
+                  slot={d.slots.find((s) => s.stateKey === def.stateKey)}
+                  runtimeFrameUrl={def.runtimeStateKey ? runtimeFrames[def.runtimeStateKey] : null}
+                  onPreview={(url, label) => setPreview({ url, label })}
+                  onSelectAsset={async (assetId) => {
+                    await api.selectAsset({ profileId, stateKey: def.stateKey, assetId })
+                    invalidate()
+                  }}
+                  onUpload={() => fileRef.current?.click()}
+                  onGenerate={() => setTab('generate')}
+                  onCompare={() => undefined}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-      {tab === 'gallery' ? (
-        <section aria-label="状态画廊">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <h2 className="font-display text-xl text-[var(--color-ink)]">状态画廊</h2>
-            <span className="badge-accent">shared_base · 仅基础形象可同步</span>
-          </div>
-          <p className="mb-4 max-w-3xl text-sm leading-relaxed text-[var(--color-ink-3)]">
-            基础形象展示当前选定素材；其余状态展示 Muse 实际运行时表现，自动驱动、无需手动配图。
-            未配置的本地素材不会伪装成 Muse 当前形象；需要对比时才显示双图对照。
-          </p>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {d.stateDefs.map((def) => (
-              <GalleryCard
-                key={def.stateKey}
-                def={def}
-                slot={d.slots.find((s) => s.stateKey === def.stateKey)}
-                runtimeFrameUrl={def.runtimeStateKey ? runtimeFrames[def.runtimeStateKey] : null}
-                onPreview={(url, label) => setPreview({ url, label })}
-                onSelectAsset={async (assetId) => {
-                  await api.selectAsset({ profileId, stateKey: def.stateKey, assetId })
-                  invalidate()
-                }}
-                onUpload={() => fileRef.current?.click()}
-                onGenerate={() => setTab('generate')}
-                onCompare={() => undefined}
-              />
-            ))}
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void onUploadFile(f)
-              e.target.value = ''
+        {tab === 'settings' ? (
+          d.settings ? (
+            <SettingsForm
+              profileId={profileId}
+              initial={d.settings}
+              settingsText={d.settingsText}
+              saving={saveSettings.isPending}
+              onSave={(patch) => saveSettings.mutate(patch)}
+            />
+          ) : (
+            <EmptyState title="暂无设定" body="此角色卡还没有设定记录，请先保存一次设定。" />
+          )
+        ) : null}
+
+        {tab === 'generate' ? (
+          <GeneratePanel
+            profileId={profileId}
+            stateDefs={d.stateDefs}
+            candidates={d.candidates}
+            generating={generate.isPending}
+            onGenerate={(stateKey, stateBrief, extra) => generate.mutate({ stateKey, stateBrief, extra })}
+            onAdopt={(candidateId, stateKey) => adopt.mutate({ candidateId, stateKey })}
+            onDiscard={async (candidateId) => {
+              await api.discardCandidate({ candidateId })
+              invalidate()
             }}
           />
-        </section>
-      ) : null}
+        ) : null}
 
-      {tab === 'settings' ? (
-        d.settings ? (
-          <SettingsForm
-            profileId={profileId}
-            initial={d.settings}
-            settingsText={d.settingsText}
-            saving={saveSettings.isPending}
-            onSave={(patch) => saveSettings.mutate(patch)}
+        {tab === 'references' ? (
+          <ReferencesTab
+            assets={d.references}
+            onUpload={() => fileRef.current?.click()}
+            onDelete={(a: Asset) =>
+              setConfirm({
+                title: '删除参考素材？',
+                body: `将删除「${a.filePath}」。已激活配置引用的素材不可删除，删除后可在回收站恢复（30 天）。`,
+                onConfirm: async () => {
+                  await api.deleteAsset({ profileId, assetId: a.id })
+                  invalidate()
+                  onToast('素材已删除')
+                },
+              })
+            }
           />
-        ) : (
-          <EmptyState title="暂无设定" body="此角色卡还没有设定记录，请先保存一次设定。" />
-        )
-      ) : null}
-
-      {tab === 'generate' ? (
-        <GeneratePanel
-          profileId={profileId}
-          stateDefs={d.stateDefs}
-          candidates={d.candidates}
-          generating={generate.isPending}
-          onGenerate={(stateKey, stateBrief, extra) => generate.mutate({ stateKey, stateBrief, extra })}
-          onAdopt={(candidateId, stateKey) => adopt.mutate({ candidateId, stateKey })}
-          onDiscard={async (candidateId) => {
-            await api.discardCandidate({ candidateId })
-            invalidate()
-          }}
-        />
-      ) : null}
-
-      {tab === 'references' ? (
-        <ReferencesTab
-          assets={d.references}
-          onUpload={() => fileRef.current?.click()}
-          onDelete={(a: Asset) =>
-            setConfirm({
-              title: '删除参考素材？',
-              body: `将删除「${a.filePath}」。已激活配置引用的素材不可删除，删除后可在回收站恢复（30 天）。`,
-              onConfirm: async () => {
-                await api.deleteAsset({ profileId, assetId: a.id })
-                invalidate()
-                onToast('素材已删除')
-              },
-            })
-          }
-        />
-      ) : null}
-
-      <details className="card p-4" open={showTech} onToggle={(e) => setShowTech((e.target as HTMLDetailsElement).open)}>
-        <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-2)]">
-          技术信息（默认隐藏）· 内部运行信息
-        </summary>
-        <dl className="mt-3 grid gap-2 text-xs text-[var(--color-ink-3)] sm:grid-cols-2">
-          <div><dt className="font-medium text-[var(--color-ink-2)]">Profile ID</dt><dd className="font-mono break-all">{d.profile.id}</dd></div>
-          <div><dt className="font-medium text-[var(--color-ink-2)]">Settings ID</dt><dd className="font-mono break-all">{d.profile.settingsId ?? '—'}</dd></div>
-          <div><dt className="font-medium text-[var(--color-ink-2)]">Gallery ID</dt><dd className="font-mono break-all">{d.profile.galleryId ?? '—'}</dd></div>
-          <div><dt className="font-medium text-[var(--color-ink-2)]">基础形象选中素材</dt><dd className="font-mono break-all">{baseSlot?.selectedAssetId ?? '未选'}</dd></div>
-          <div><dt className="font-medium text-[var(--color-ink-2)]">最近激活</dt><dd>{d.activations[0]?.activatedAt ?? '无记录'}</dd></div>
-          <div><dt className="font-medium text-[var(--color-ink-2)]">生成任务（近 30）</dt><dd>{d.jobs.length} 条</dd></div>
-        </dl>
-      </details>
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          onClick={() =>
-            setConfirm({
-              title: '归档此角色卡？',
-              body: '归档后角色卡会从角色库主列表移入归档，可恢复；已激活的角色须先解除激活。',
-              confirmLabel: '确认归档',
-              onConfirm: async () => {
-                await api.archiveProfile({ id: profileId })
-                invalidate()
-                onToast('已归档')
-                onBack()
-              },
-            })
-          }
-        >
-          归档角色卡
-        </Button>
-        <Button
-          variant="danger"
-          onClick={() =>
-            setConfirm({
-              title: '删除此角色卡？',
-              body: '删除是危险操作。删除前须先解除激活，且被激活配置引用的素材不可删除。',
-              onConfirm: async () => {
-                await api.deleteProfile({ id: profileId })
-                invalidate()
-                onToast('已删除')
-                onBack()
-              },
-            })
-          }
-        >
-          删除角色卡
-        </Button>
+        ) : null}
+        </div>
       </div>
+
+      <aside className="workbench-rail">
+        <Hero
+          profile={d.profile}
+          isActive={d.isActive}
+          coverUrl={coverUrl}
+          activating={activate.isPending}
+          onActivate={() => activate.mutate()}
+          onEditProfile={() => setTab('settings')}
+        />
+        {activationNote ? <Notice tone="good">{activationNote}</Notice> : null}
+        <details className="panel tech" open={showTech} onToggle={(e) => setShowTech((e.target as HTMLDetailsElement).open)}>
+          <summary>技术信息（默认隐藏）· 内部运行信息</summary>
+          <dl className="tech-grid">
+            <div>
+              <dt>Profile ID</dt>
+              <dd className="mono">{d.profile.id}</dd>
+            </div>
+            <div>
+              <dt>Settings ID</dt>
+              <dd className="mono">{d.profile.settingsId ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Gallery ID</dt>
+              <dd className="mono">{d.profile.galleryId ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>基础形象选中素材</dt>
+              <dd className="mono">{baseSlot?.selectedAssetId ?? '未选'}</dd>
+            </div>
+            <div>
+              <dt>最近激活</dt>
+              <dd>{d.activations[0]?.activatedAt ?? '无记录'}</dd>
+            </div>
+            <div>
+              <dt>生成任务（近 30）</dt>
+              <dd>{d.jobs.length} 条</dd>
+            </div>
+          </dl>
+        </details>
+        <section className="panel">
+          <div className="panel-body danger-zone">
+            <p className="meta">危险操作</p>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setConfirm({
+                  title: '归档此角色卡？',
+                  body: '归档后角色卡会从角色库主列表移入归档，可恢复；已激活的角色须先解除激活。',
+                  confirmLabel: '确认归档',
+                  onConfirm: async () => {
+                    await api.archiveProfile({ id: profileId })
+                    invalidate()
+                    onToast('已归档')
+                    onBack()
+                  },
+                })
+              }
+            >
+              <Icon name="archive" />
+              归档角色卡
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() =>
+                setConfirm({
+                  title: '删除此角色卡？',
+                  body: '删除是危险操作。删除前须先解除激活，且被激活配置引用的素材不可删除。',
+                  onConfirm: async () => {
+                    await api.deleteProfile({ id: profileId })
+                    invalidate()
+                    onToast('已删除')
+                    onBack()
+                  },
+                })
+              }
+            >
+              <Icon name="trash" />
+              删除角色卡
+            </Button>
+          </div>
+        </section>
+      </aside>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+        className="file-input"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) void onUploadFile(f)
+          e.target.value = ''
+        }}
+      />
 
       <PreviewDialog open={preview != null} onOpenChange={(o) => !o && setPreview(null)} url={preview?.url ?? null} label={preview?.label ?? ''} />
       {confirm ? (
@@ -326,25 +337,25 @@ function ReferencesTab({
   onDelete: (a: Asset) => void
 }) {
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-display text-xl text-[var(--color-ink)]">参考素材</h2>
-        <Button variant="outline" onClick={onUpload}>上传素材</Button>
+    <section className="stack">
+      <div className="split">
+        <h2 className="section-title">参考素材</h2>
+        <Button variant="outline" size="sm" onClick={onUpload}>上传素材</Button>
       </div>
       {assets.length === 0 ? (
         <EmptyState title="暂无参考素材" body="上传外观或画风参考图，生成时会作为参考注入；仅支持 png / jpeg / webp / gif / mp4 / webm。" />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="tile-grid">
           {assets.map((a) => (
-            <figure key={a.id} className="card overflow-hidden">
-              {a.url ? <img src={a.url} alt="" className="aspect-square w-full object-cover" loading="lazy" /> : null}
-              <figcaption className="flex items-center justify-between gap-2 p-3">
-                <span className="truncate text-xs text-[var(--color-ink-3)]">
-                  {a.sha256 ? `SHA-256 ${a.sha256.slice(0, 12)}…` : a.format} · {a.source}
-                </span>
-                <button type="button" onClick={() => onDelete(a)} className="shrink-0 text-xs text-[var(--color-bad)] hover:underline">
-                  删除
-                </button>
+            <figure key={a.id} className="panel gallery-card">
+              {a.url ? (
+                <div className="media-11">
+                  <img className="media-img" src={a.url} alt="" loading="lazy" />
+                </div>
+              ) : null}
+              <figcaption className="ref-cap">
+                <span className="meta ellipsis">{a.sha256 ? `SHA-256 ${a.sha256.slice(0, 12)}…` : a.format} · {a.source}</span>
+                <Button variant="danger" size="sm" onClick={() => onDelete(a)}>删除</Button>
               </figcaption>
             </figure>
           ))}
