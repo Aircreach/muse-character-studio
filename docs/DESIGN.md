@@ -238,7 +238,12 @@ SQLite（server/data/studio.db，WAL 模式）
 - `RuntimeMedia.tsx`：全站唯一的媒体展示组件，内部按扩展名/mime 判断类型：
   视频用 `<video autoplay loop muted playsInline>`（有 poster，没有就用基础图），
   图片用 `<img>`；深色界面有 `darkUrl` 时用深色版，没有就回退浅色；加载失败
-  时回退 poster、再失败显示占位。画廊、Hero、角色库封面、参考素材、预览都走它。
+  时回退 poster、再失败显示占位。三种播放模式（提交 987b136c）：`autoplay`（默认，
+  画廊/封面自动循环静音播）、`controls`（预览：带控制条、可手动取消静音）、
+  `still`（缩略图：不自动播，只显示 poster 或首帧）。预览传完整 `RuntimeMediaSource`
+  （含 `darkUrl` / `posterUrl`），不只传 url。画廊、Hero、角色库封面、参考素材、
+  预览对话框与画廊缩略图条都走它。例外（未改）：生成中心候选缩略图（`GeneratePanel.tsx`
+  仍是裸 `<img>`）与 `ui.tsx` 的 `MediaImage`（独立的裸 `<img>` 封装）不在本次收口范围。
 
 #### 3.2.5 设定编辑器（`client/src/components/SettingsForm.tsx`）
 
@@ -1002,21 +1007,26 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `tsconfig.node.json` | 仅 `vite.config.ts` 的 TS 配置 |
 | `client/src/main.tsx` | 前端启动：建 QueryClient（`staleTime` 30 秒、失败重试 1 次）、挂载 `App`、加载 `theme.css` |
 | `client/src/App.tsx` | 三视图与角色库、系统页；首开自动种入；toast 与导航 |
-| `client/src/Workspace.tsx` | 角色工作台：Hero、四 Tab、上传、归档/删除、技术信息折叠区 |
+| `client/src/Workspace.tsx` | 角色工作台：Hero、四 Tab、上传、归档/删除、技术信息折叠区；全部 Hooks 调用必须在任何条件返回之前（见附录 A.11） |
 | `client/src/api.ts` | 动作类型契约 + `POST ./actions` 的 fetch 封装 + File→base64 传输转换；9 个 `[LOCAL ALIAS]` 别名在此标注 |
 | `client/src/shared.ts` | 前后端共用的领域类型、能力常量、运行时原图常量（MD5、字节数、尺寸） |
 | `client/src/theme.css` | 全部设计 token：颜色、字体、圆角、阴影、按钮、徽标、暗色模式、390px 标题修复 |
 | `client/src/hooks/useDraft.ts` | 草稿持久化 hook（`useDraft`） |
-| `client/src/components/ui.tsx` | 基础组件：Button、StatusMark、Badge、EmptyState、Modal（Radix Dialog） |
+| `client/src/hooks/useMediaQuery.ts` | 媒体查询 hook（4c86cd0 新增，供 Shell 响应式布局用） |
+| `client/src/components/Shell.tsx` | 应用外壳：侧栏 + 各面板独立滚动的视口锁定布局（4c86cd0 新增） |
+| `client/src/components/icons.tsx` | 线条图标集（ce047d0 新增） |
+| `client/src/components/ui.tsx` | 基础组件：Button、StatusMark、Badge、EmptyState、Modal（Radix Dialog）；`MediaImage` 是独立的裸 `<img>` 封装，未走 `RuntimeMedia` |
 | `client/src/components/ProfileCard.tsx` | 角色库卡片：封面优先、进度条、收藏星标、已归档标识与恢复按钮 |
 | `client/src/components/Hero.tsx` | 工作台主视觉：封面、名称、简介、激活/编辑资料按钮 |
-| `client/src/components/GalleryCard.tsx` | 单状态画廊卡：图片主体、可配置/自动驱动、双图对照、替换按钮 |
-| `client/src/components/RuntimeMedia.tsx` | 全站唯一媒体展示组件：按类型播视频/显示图片、类型来源徽标、无媒体占位 |
+| `client/src/components/GalleryCard.tsx` | 单状态画廊卡：图片主体、可配置/自动驱动、双图对照、替换按钮；缩略图条走 `RuntimeMedia` 的 `still` 模式 |
+| `client/src/components/RuntimeMedia.tsx` | 全站唯一媒体展示组件：按类型播视频/显示图片、类型来源徽标、无媒体占位；三种模式 `autoplay` / `controls` / `still`（见 3.2.4） |
 | `client/src/components/SettingsForm.tsx` | 7 组结构化设定编辑器 + 自定义字段 + 整合预览 |
-| `client/src/components/GeneratePanel.tsx` | 生成表单与候选列表（采纳/丢弃） |
-| `client/src/components/PreviewDialog.tsx` | 高清预览对话框（`object-contain`，最大高度 70vh） |
+| `client/src/components/GeneratePanel.tsx` | 生成表单与候选列表（采纳/丢弃）；候选缩略图仍是裸 `<img>`，未走 `RuntimeMedia` |
+| `client/src/components/PreviewDialog.tsx` | 高清预览对话框（`object-contain`，最大高度 70vh）；接受完整 `RuntimeMediaSource`，用 `controls` 模式渲染 |
 | `client/src/components/ConfirmDialog.tsx` | 危险操作确认框（归档/删除/删素材共用） |
 | `client/src/assets/runtime/README.md` | 运行时原图 `base.webp` 的说明（来源、尺寸、MD5）；目录里没有大图文件本身 |
+| `docs/DESIGN_SYSTEM.md` | 设计系统说明（4c86cd0 新增，与黑房间画廊重构同批） |
+| `.cursor/skills/product-ui-system/SKILL.md` | Cursor 产品 UI 规范 skill（4c86cd0 新增） |
 | `server/BACKEND.md` | 本地后端说明：30 个真实动作清单、与线上差异、警告表、启动与重置、自查结果 |
 | `server/dev-full.ts` | `bun run dev:full` 启动器：同时起后端 8787 与前端 5173 |
 | `server/tsconfig.server.json` | 服务端 TS 配置（`types: ["bun-types"]`，`include` 为 `src` 与 `dev-full.ts`） |
@@ -1024,9 +1034,9 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `server/src/schema.ts` | 数据模型：9 张表建表、行记录映射、`settingsText` 拼接 |
 | `server/src/seed.ts` | 种子数据：A/B 卡与 10 条状态定义（id 与文案按线上实测写死） |
 | `server/src/actions.ts` | 30 个真实动作 + 9 个本地别名 + 分发表 + 全部守则（1155 行） |
-| `server/src/http.ts` | Bun 服务入口：8787，`GET /health`、`POST /actions`、`GET /assets/` |
-| `server/src/muse.ts` | Muse 依赖隔离层：四项功能的报错 / warning / 本地原图查找 |
-| `server/data/`（不提交） | 本地运行时数据：`studio.db`（SQLite）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件）、可选的 `runtime-base.webp`（手动放置的原图）、`runtime-media/`（真实运行时媒体，视频/静态帧/深色版，供 `getRuntimeAssets` 用）；删掉整个目录即重置回首开状态 |
+| `server/src/http.ts` | Bun 服务入口：8787，`GET /health`、`POST /actions`、`GET /assets/`（含 `/assets/runtime-media/`，带防目录穿越检查） |
+| `server/src/muse.ts` | Muse 依赖隔离层：四项功能的报错 / warning / 本地原图查找；`getRuntimeAssets` 扫描 `server/data/runtime-media/` 返回真实清单 |
+| `server/data/`（不提交） | 本地运行时数据：`studio.db`（SQLite）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件）、可选的 `runtime-base.webp`（手动放置的原图）、`runtime-media/`（真实运行时媒体，视频/静态帧/深色版，供 `getRuntimeAssets` 用；内有 `README.md` 写明文件约定与恢复方法，见附录 A.12）；删掉整个目录即重置回首开状态 |
 | `node_modules/`（不提交） | 依赖安装目录，`bun install` 生成 |
 | `dist/`（不提交） | `vite build` 产物，用完即删，不提交 |
 
@@ -1143,3 +1153,28 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   `getStudio` 带回的能力矩阵，再取不到才用写死值，并标注来源。提交 e6132035。
   另：`api.ts` 里 `getCapabilities` 的返回类型之前写错成 `Capabilities`，
   实际服务端返回 `{ capabilities }`，已一并修正。】
+- **A.11 工作台 Hooks 顺序错误导致黑屏（e6132035 引入，部署审计发现）。**
+  `Workspace.tsx` 的 `fileMode` 用 `useRef` 写在 `if (detail.isLoading) return …`
+  条件返回之后：首次加载时该 Hook 不执行，加载完成后再执行，React 报 Hooks
+  顺序错误，工作台黑屏。部署版在构建器侧先修掉了，本地仓库当时没有这个修正。
+  【已修复：`fileMode` 的 `useRef` 移到第 54 行，与其他 `useRef` 放在一起，全部
+  18 处 Hooks 调用都在第一处条件返回（第 186 行）之前。提交 987b136c。
+  规则：`Workspace.tsx` 里所有 Hooks 调用必须在任何条件返回之前。】
+- **A.12 预览与缩略图没走 `RuntimeMedia`（e6132035 的遗漏，部署审计发现）。**
+  `PreviewDialog` 仍按 URL 扩展名直接渲染裸 `<video>/<img>`，画廊缩略图条也是
+  裸 `<video>/<img>`；`onPreview` 只传 `source.url`，深色状态在画廊里播 `darkUrl`、
+  点开预览却播浅色文件，且没有 poster 回退。
+  【已修复：预览接口改为传递完整 `RuntimeMediaSource`（含 `darkUrl` / `posterUrl`），
+  `PreviewDialog` 用 `controls` 模式渲染，深色预览播 `darkUrl`、失败回退 poster；
+  缩略图条用 `still` 模式；`RuntimeMedia` 新增 `autoplay` / `controls` / `still`
+  三种模式。提交 987b136c。例外：生成中心候选缩略图与 `ui.tsx` 的 `MediaImage`
+  仍是裸 `<img>`，未收口——要“全站所有媒体都走 `RuntimeMedia`”时再改这两处。】
+- **A.13 `server/data/` 被自查清理误删 `runtime-media/`。** 987b136c 一轮的自查
+  结束时清掉了 `server/data/` 下的测试库，把 `runtime-media/`（12 MB 真实媒体）
+  也一起删了；该目录被 `.gitignore` 忽略，不在仓库里，删掉后本地 `getRuntimeAssets`
+  会回落到空 + warning。
+  【已修复：2026-11-28 按 `server/data/runtime-media/README.md` 的约定从
+  `~/workspace/avatars/` 重新复制恢复 19 个文件，`base.webp` MD5 与原图一致，
+  `getRuntimeAssets` 实测返回 8 项、`baseSha256` 与 `sha256sum` 一致。
+  教训：清理 `server/data/` 时只删测试库（`studio.db*`、`assets/`），不要整目录删；
+  `runtime-media/` 的恢复方法写在该目录的 `README.md` 里。】
