@@ -1094,23 +1094,23 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   实际有 33 项（见第 3.2.5 节的完整清单）；`README.md`、`server/BACKEND.md`、
   `client/src/api.ts` 注释里写的“32 个字段”与代码不符。本文档写 33 个。
   【已修复：`README.md`、`server/BACKEND.md`、`server/src/CONTRACT.md`、
-  `client/src/api.ts` 里的“32 个字段”已全部改为 33 个，提交见下文。】
+  `client/src/api.ts` 里的“32 个字段”已全部改为 33 个，提交 e6132035。】
 - **A.2 base 卡的“替换”按钮目前是空操作。** `GalleryCard` 的“替换”按钮调
   `Workspace` 传的 `onCompare={() => undefined}`；真正的替换做法是上传/生成新素材后
   点缩略图条切换选中。
   【已修复：`onCompare` 已删掉；“替换”按钮改为真实行为——打开上传，选文件后
   以 `uploadAsset select=true` 上传并立即把新文件选为基础形象；非 base 卡的
-  “对比本地素材”按钮只做本地展开/收起，不再调空操作。提交见下文。】
+  “对比本地素材”按钮只做本地展开/收起，不再调空操作。提交 e6132035。】
 - **A.3 没有回收站。** 参考素材删除确认框写“删除后可在回收站恢复（30 天）”，
   但 `deleteAsset` 是永久删除（删文件、删链接、删参考标记），代码里没有任何回收站逻辑。
   【已修复：确认框改为“删除是永久操作：文件、全部槽位链接与参考标记都会被删除，
-  无法恢复。”提交见下文。】
+  无法恢复。”提交 e6132035。】
 - **A.4 草稿在点保存当时就清掉，不是“保存成功后才清”。** `SettingsForm` 是
   `onSave(draft.value); draft.clear()`（同步执行），`GeneratePanel` 点“开始生成”时也
   立即 `brief.clear()`；保存失败时草稿已清。`README.md` 第六节“只在保存成功后清除”
   与代码不符。
   【已修复：`SettingsForm` 与 `GeneratePanel` 的保存/生成回调改为返回 Promise，
-  只在 `mutateAsync` 成功后才清草稿；失败时草稿保留。提交见下文。】
+  只在 `mutateAsync` 成功后才清草稿；失败时草稿保留。提交 e6132035。】
 - **A.5 系统页“生成缩略图”与本地不符。** `App.tsx` 的 `SystemView` 写“保存时算
   SHA-256、生成缩略图、原子 rename”，但本地后端不生成缩略图（`thumbnailPath` 恒为 null）。
   【部分修复：4c86cd0 改版时系统页那句已去掉，当前系统页不再写“生成缩略图”；
@@ -1119,7 +1119,7 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 - **A.6 已归档的卡仍会出现在角色库。** 后端 `getStudio` 与前端列表都没有过滤
   `archivedAt`；`restoreProfile` 存在但前端无入口。
   【已修复：已归档卡在角色库里去色变暗、带“已归档”角标，并有“恢复”按钮
-  （调 `restoreProfile`）；列表仍不过滤归档卡（与后端行为一致），但一眼可区分。提交见下文。】
+  （调 `restoreProfile`）；列表仍不过滤归档卡（与后端行为一致），但一眼可区分。提交 e6132035。】
 - **A.7 五个运行时状态共用同一张占位图。** `Workspace.tsx` 的 `runtimeFrames`
   把 idle、waking、working、making_something、milestone_level_up 五个状态
   都指向 `/assets/runtime/base.webp`；画廊里看到的“运行时帧”目前是同一张 base 图，
@@ -1127,7 +1127,7 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   【已修复：`runtimeFrames` 硬编码已删掉；`getRuntimeAssets` 改为返回
   `server/data/runtime-media/` 里的真实清单（每状态自己的视频/帧/深色版），
   画廊经 `RuntimeMedia` 播放真实媒体；没有真实媒体时显示“暂无运行时画面”占位，
-  不用基础图冒充。提交见下文。线上部署时构建器须在适配层实现 `getRuntimeAssets`
+  不用基础图冒充。提交 e6132035。线上部署时构建器须在适配层实现 `getRuntimeAssets`
   并返回内置媒体，见 `server/BACKEND.md`。】
 - **A.8 `galleryId` 恒为 null。** 没有独立的 gallery 表，`profileRowToDomain`
   写死 `galleryId: null`；工作台技术信息里显示 `—`。
@@ -1135,11 +1135,11 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   `state_links` 派生，不需要 gallery 实体；`galleryId` 字段保留作兼容，不硬改模型。】
 - **A.9 `useDebouncedDraft` 没有任何调用方。** 导出在 `hooks/useDraft.ts` 里，
   全仓库无人调用，是预留代码。
-  【已修复：该函数已删除。提交见下文。】
+  【已修复：该函数已删除。提交 e6132035。】
 - **A.10 系统页不用 `getCapabilities`。** `SystemView` 展示的是前端写死的
   `AUDITED_CAPABILITIES`，`getStudio` 返回的能力矩阵前端也没用上；
   两份常量目前一致，但改一处时另一处不会自动跟着变。
   【已修复：系统页优先调 `getCapabilities` 取实时值；取不到时回退到
-  `getStudio` 带回的能力矩阵，再取不到才用写死值，并标注来源。提交见下文。
+  `getStudio` 带回的能力矩阵，再取不到才用写死值，并标注来源。提交 e6132035。
   另：`api.ts` 里 `getCapabilities` 的返回类型之前写错成 `Capabilities`，
   实际服务端返回 `{ capabilities }`，已一并修正。】
