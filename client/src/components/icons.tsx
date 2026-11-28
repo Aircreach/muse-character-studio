@@ -23,6 +23,10 @@ export type IconName =
   | 'check'
   | 'compare'
   | 'mark'
+  | 'sidebar'
+  | 'bell'
+  | 'sun'
+  | 'moon'
 
 const PATHS: Record<IconName, ReactNode> = {
   library: (
@@ -131,6 +135,25 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21" />
     </>
   ),
+  sidebar: (
+    <>
+      <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+      <path d="M9 4v16" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M6 16.5h12l-1.2-2V11a4.8 4.8 0 0 0-9.6 0v3.5L6 16.5z" />
+      <path d="M10 16.5a2 2 0 0 0 4 0" />
+    </>
+  ),
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 4.5v1.8M12 17.7v1.8M4.5 12h1.8M17.7 12h1.8M6.7 6.7l1.3 1.3M16 16l1.3 1.3M17.3 6.7 16 8M8 16l-1.3 1.3" />
+    </>
+  ),
+  moon: <path d="M15.5 4.8A7 7 0 1 0 19 14.2 5.4 5.4 0 0 1 15.5 4.8z" />,
 }
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

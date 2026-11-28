@@ -60,7 +60,7 @@ const GROUPS: Array<{ title: string; note: string; fields: FieldDef[] }> = [
   },
   {
     title: '行为规则',
-    note: '本轮新单列的分组：不希望出现的行为与行为边界。旧版 forbiddenBehaviors 保留在此组，不再混在交流风格里。',
+    note: '不希望出现的行为与边界，和交流风格分开保存。',
     fields: [{ key: 'forbiddenBehaviors', label: '不希望出现的行为', textarea: true }],
   },
   {

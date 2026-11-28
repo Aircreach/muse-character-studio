@@ -1,6 +1,6 @@
 import type { CharacterProfile } from '../shared'
 import { Icon } from './icons'
-import { Badge, Button, MediaImage, StatusMark } from './ui'
+import { Button, MediaImage } from './ui'
 
 /**
  * Library card — cover-first. No cover uses the runtime base image.
@@ -44,41 +44,24 @@ export function ProfileCard({
             src={cover}
             alt={`${profile.name} 封面`}
             fallback={
-              <div className="media-empty">
-                <Icon name="mark" size={36} />
+              <div className="plate-void">
+                <span className="plate-void-name">{profile.name}</span>
               </div>
             }
           />
-          {isActive ? (
-            <span className="media-badges">
-              <Badge tone="good">当前激活</Badge>
-            </span>
-          ) : null}
-          <span className="open-chip">
-            打开
-            <Icon name="arrowRight" size={14} />
-          </span>
+          {isActive ? <span className="plate-flag">当前激活</span> : null}
+          {profile.archivedAt ? <span className={isActive ? 'plate-flag plate-flag-second' : 'plate-flag'}>已归档</span> : null}
           <div className="poster-caption">
             <h3 className="card-title">{profile.name}</h3>
-            {profile.subtitle ? <p className="meta">{profile.subtitle}</p> : null}
+            <div className="poster-line">
+              <p className="poster-sub">{profile.subtitle || '未写副标题'}</p>
+              <span className="poster-pct">{pct}%</span>
+            </div>
+            {profile.tags.length ? <p className="poster-tags">{profile.tags.slice(0, 3).join('  ')}</p> : null}
           </div>
-        </div>
-        <div className="card-body">
-          {profile.description ? <p className="prose clamp-2">{profile.description}</p> : null}
-          <div className="split">
-            <StatusMark tone={configured >= total ? 'good' : 'warn'} label={`状态 ${configured}/${total}`} />
-            <span className="meta">{pct}%</span>
-          </div>
-          <div className="progress" aria-hidden>
+          <div className="plate-meter" aria-hidden>
             <span style={{ width: `${pct}%` }} />
           </div>
-          {profile.tags.length ? (
-            <div className="cluster">
-              {profile.tags.slice(0, 3).map((t) => (
-                <Badge key={t}>{t}</Badge>
-              ))}
-            </div>
-          ) : null}
         </div>
       </button>
     </article>

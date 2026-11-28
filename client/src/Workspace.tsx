@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { api, profileKey } from './api'
 import type { Asset } from './shared'
 import { Icon } from './components/icons'
 import { Badge, Button, EmptyState, LoadingNote, Notice, TabBar } from './components/ui'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { GalleryCard } from './components/GalleryCard'
 import { GeneratePanel } from './components/GeneratePanel'
@@ -29,12 +30,10 @@ export function Workspace({
   profileId,
   onBack,
   onToast,
-  onOpenSystem,
 }: {
   profileId: string
   onBack: () => void
   onToast: (msg: string) => void
-  onOpenSystem: () => void
 }) {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('gallery')
@@ -43,6 +42,25 @@ export function Workspace({
   const [showTech, setShowTech] = useState(false)
   const [activationNote, setActivationNote] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
+  const narrow = useMediaQuery('(max-width: 1080px)')
+  const [inspectorOpen, setInspectorOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    if (window.matchMedia('(max-width: 1080px)').matches) return false
+    try {
+      return localStorage.getItem('mcs-ui-inspector-open') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const [inspectorWidth, setInspectorWidth] = useState(() => {
+    try {
+      const width = Number(localStorage.getItem('mcs-ui-inspector'))
+      return Number.isFinite(width) && width >= 280 && width <= 440 ? width : 320
+    } catch {
+      return 320
+    }
+  })
 
   const detail = useQuery({ queryKey: profileKey(profileId), queryFn: () => api.getProfileDetail({ id: profileId }) })
   const invalidate = () => {
@@ -75,6 +93,7 @@ export function Workspace({
       invalidate()
       onToast('已生成候选，请在生成中心采纳')
     },
+    onError: (error) => onToast(`生成失败：${error instanceof Error ? error.message : '未知错误'}`),
   })
   const adopt = useMutation({
     mutationFn: (v: { candidateId: string; stateKey: string }) => api.adoptCandidate({ profileId, ...v }),
@@ -82,12 +101,48 @@ export function Workspace({
       invalidate()
       onToast('候选已加入画廊')
     },
+    onError: (error) => onToast(`采纳失败：${error instanceof Error ? error.message : '未知错误'}`),
   })
 
   useEffect(() => {
     setTab('gallery')
     setActivationNote(null)
   }, [profileId])
+
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0)
+  }, [tab, profileId])
+
+  const wasNarrow = useRef(narrow)
+  useEffect(() => {
+    if (narrow && !wasNarrow.current) setInspectorOpen(false)
+    if (!narrow && wasNarrow.current) {
+      try {
+        setInspectorOpen(localStorage.getItem('mcs-ui-inspector-open') !== '0')
+      } catch {
+        setInspectorOpen(true)
+      }
+    }
+    wasNarrow.current = narrow
+  }, [narrow])
+
+  useEffect(() => {
+    if (narrow) return
+    try {
+      localStorage.setItem('mcs-ui-inspector-open', inspectorOpen ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [inspectorOpen, narrow])
+
+  useEffect(() => {
+    if (!narrow || !inspectorOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setInspectorOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [narrow, inspectorOpen])
 
   const d = detail.data
   const baseSlot = useMemo(() => d?.slots.find((s) => s.stateKey === 'base'), [d])
@@ -121,22 +176,53 @@ export function Workspace({
     }
   }
 
-  return (
-    <div className="workbench view-enter">
-      <div className="workbench-stage stack">
-        <div className="stage-bar">
-          <Button variant="ghost" size="sm" onClick={onBack}><Icon name="arrowLeft" />角色库</Button>
-          <Button variant="ghost" size="sm" onClick={onOpenSystem}>系统设置<Icon name="arrowRight" /></Button>
-        </div>
+  const onSplitterDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startW = inspectorWidth
+    const target = event.currentTarget
+    target.setPointerCapture(event.pointerId)
+    const move = (ev: PointerEvent) => {
+      setInspectorWidth(Math.min(440, Math.max(280, startW - (ev.clientX - startX))))
+    }
+    const up = (ev: PointerEvent) => {
+      target.removeEventListener('pointermove', move)
+      const next = Math.min(440, Math.max(280, startW - (ev.clientX - startX)))
+      setInspectorWidth(next)
+      try {
+        localStorage.setItem('mcs-ui-inspector', String(next))
+      } catch {
+        /* ignore */
+      }
+    }
+    target.addEventListener('pointermove', move)
+    target.addEventListener('pointerup', up, { once: true })
+  }
 
+  return (
+    <div
+      className="workspace"
+      data-inspector={inspectorOpen ? 'open' : 'closed'}
+      style={{ '--inspector-w': `${inspectorWidth}px` } as CSSProperties}
+    >
+      <div className="subnav">
         <TabBar
+          className="tabs-vertical"
           ariaLabel="工作台导航"
           value={tab}
           onChange={(next) => setTab(next as Tab)}
           options={TABS}
         />
+        <Button variant="outline" size="sm" className="inspector-show" onClick={() => setInspectorOpen(true)}>
+          角色信息
+        </Button>
+      </div>
 
-        <div className="pane-scroll view-enter" key={tab}>
+      <div className="workspace-main" ref={mainRef}>
+        <header className="workspace-title">
+          <h1 className="page-title">{d.profile.name}</h1>
+          {d.profile.subtitle ? <p className="page-lead">{d.profile.subtitle}</p> : null}
+        </header>
         {tab === 'gallery' ? (
           <section className="stack" aria-label="状态画廊">
             <div className="cluster">
@@ -156,8 +242,12 @@ export function Workspace({
                   runtimeFrameUrl={def.runtimeStateKey ? runtimeFrames[def.runtimeStateKey] : null}
                   onPreview={(url, label) => setPreview({ url, label })}
                   onSelectAsset={async (assetId) => {
-                    await api.selectAsset({ profileId, stateKey: def.stateKey, assetId })
-                    invalidate()
+                    try {
+                      await api.selectAsset({ profileId, stateKey: def.stateKey, assetId })
+                      invalidate()
+                    } catch (error) {
+                      onToast(`选择失败：${error instanceof Error ? error.message : '未知错误'}`)
+                    }
                   }}
                   onUpload={() => fileRef.current?.click()}
                   onGenerate={() => setTab('generate')}
@@ -206,18 +296,53 @@ export function Workspace({
                 title: '删除参考素材？',
                 body: `将删除「${a.filePath}」。已激活配置引用的素材不可删除，删除后可在回收站恢复（30 天）。`,
                 onConfirm: async () => {
-                  await api.deleteAsset({ profileId, assetId: a.id })
-                  invalidate()
-                  onToast('素材已删除')
+                  try {
+                    await api.deleteAsset({ profileId, assetId: a.id })
+                    invalidate()
+                    onToast('素材已删除')
+                  } catch (error) {
+                    onToast(`删除失败：${error instanceof Error ? error.message : '未知错误'}`)
+                  }
                 },
               })
             }
           />
         ) : null}
-        </div>
       </div>
 
-      <aside className="workbench-rail">
+      <div
+        className="splitter"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整角色信息宽度"
+        aria-valuemin={280}
+        aria-valuemax={440}
+        aria-valuenow={inspectorWidth}
+        tabIndex={0}
+        onPointerDown={onSplitterDown}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          const delta = event.key === 'ArrowLeft' ? 16 : -16
+          const next = Math.min(440, Math.max(280, inspectorWidth + delta))
+          setInspectorWidth(next)
+          try {
+            localStorage.setItem('mcs-ui-inspector', String(next))
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
+      {narrow && inspectorOpen ? (
+        <button type="button" className="sheet-scrim" aria-label="关闭角色信息" onClick={() => setInspectorOpen(false)} />
+      ) : null}
+      <aside className="inspector-pane" aria-label="角色信息" aria-hidden={narrow && !inspectorOpen}>
+        <div className="inspector-bar">
+          <span className="meta">角色信息</span>
+          <button type="button" className="icon-btn" aria-label="隐藏角色信息" onClick={() => setInspectorOpen(false)}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
         <Hero
           profile={d.profile}
           isActive={d.isActive}
@@ -228,7 +353,7 @@ export function Workspace({
         />
         {activationNote ? <Notice tone="good">{activationNote}</Notice> : null}
         <details className="panel tech" open={showTech} onToggle={(e) => setShowTech((e.target as HTMLDetailsElement).open)}>
-          <summary>技术信息（默认隐藏）· 内部运行信息</summary>
+          <summary>技术信息</summary>
           <dl className="tech-grid">
             <div>
               <dt>Profile ID</dt>
@@ -267,10 +392,14 @@ export function Workspace({
                   body: '归档后角色卡会从角色库主列表移入归档，可恢复；已激活的角色须先解除激活。',
                   confirmLabel: '确认归档',
                   onConfirm: async () => {
-                    await api.archiveProfile({ id: profileId })
-                    invalidate()
-                    onToast('已归档')
-                    onBack()
+                    try {
+                      await api.archiveProfile({ id: profileId })
+                      invalidate()
+                      onToast('已归档')
+                      onBack()
+                    } catch (error) {
+                      onToast(`归档失败：${error instanceof Error ? error.message : '未知错误'}`)
+                    }
                   },
                 })
               }
@@ -285,10 +414,14 @@ export function Workspace({
                   title: '删除此角色卡？',
                   body: '删除是危险操作。删除前须先解除激活，且被激活配置引用的素材不可删除。',
                   onConfirm: async () => {
-                    await api.deleteProfile({ id: profileId })
-                    invalidate()
-                    onToast('已删除')
-                    onBack()
+                    try {
+                      await api.deleteProfile({ id: profileId })
+                      invalidate()
+                      onToast('已删除')
+                      onBack()
+                    } catch (error) {
+                      onToast(`删除失败：${error instanceof Error ? error.message : '未知错误'}`)
+                    }
                   },
                 })
               }

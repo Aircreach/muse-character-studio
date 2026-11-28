@@ -230,14 +230,16 @@ export function TabBar({
   onChange,
   options,
   ariaLabel,
+  className = '',
 }: {
   value: string
   onChange: (value: string) => void
   options: Array<{ value: string; label: string; icon?: IconName }>
   ariaLabel: string
+  className?: string
 }) {
   return (
-    <nav className="tabs" aria-label={ariaLabel}>
+    <nav className={`tabs ${className}`.trim()} aria-label={ariaLabel}>
       {options.map((o) => (
         <button
           key={o.value}

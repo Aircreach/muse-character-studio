@@ -27,11 +27,7 @@ export function Hero({
         <MediaImage
           src={coverUrl}
           alt={`${profile.name} 主视觉`}
-          fallback={
-            <div className="media-empty">
-              <Icon name="mark" size={40} />
-            </div>
-          }
+          fallback={<div className="plate-void" />}
         />
         {isActive ? (
           <span className="media-badges">
@@ -40,10 +36,10 @@ export function Hero({
         ) : null}
       </div>
       <div className="card-body">
-        <h1 className="active-profile-title">
+        <h2 className="active-profile-title">
           {profile.name}
           {profile.subtitle ? <span className="title-aside"> · {profile.subtitle}</span> : null}
-        </h1>
+        </h2>
         {profile.description ? <p className="prose">{profile.description}</p> : null}
         <div className="cluster">
           <StatusMark tone={isActive ? 'good' : 'neutral'} label={isActive ? '已激活 · 本地记录' : '未激活'} />
@@ -52,7 +48,7 @@ export function Hero({
           ))}
         </div>
         <div className="inspector-actions">
-          <Button variant={isActive ? 'outline' : 'primary'} onClick={onActivate} disabled={activating || isActive}>
+          <Button variant={isActive ? 'outline' : 'primary'} onClick={onActivate} disabled={activating || isActive} aria-busy={activating}>
             <Icon name="check" />
             {activating ? '激活中…' : isActive ? '已激活' : '激活此角色'}
           </Button>
