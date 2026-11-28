@@ -15,8 +15,8 @@
 `base.webp`），不用再手动放图；前端无封面时回退的 `/assets/runtime/base.webp`
 也不再 404。
 
-其余真实媒体（7 个状态的 MP4、5 张静态帧、深色版）仍只放在本地
-`server/data/runtime-media/`（gitignored，不进仓库），恢复方法见该目录的
+其余真实媒体（7 个状态的 MP4、5 张静态帧、深色版）也在仓库里，见
+`server/data/runtime-media/`（完整示例角色数据，19 个文件），恢复方法见该目录的
 `README.md`；线上 artifact 里内嵌的是同一批文件。
 
 本地验证用的同一文件：

@@ -54,7 +54,7 @@
 | 功能 | 本地表现 | 为什么 | 替代做法 |
 | --- | --- | --- | --- |
 | 生成图片 generateAsset | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败会记一条 status=error 的任务，可在生成中心看到 | 需要 Muse 的 generate_media，本地调不到 | 在线上工作室生成候选；或用 uploadAsset 上传真实图片 |
-| 读取 Muse 运行时形象 getRuntimeAssets | `server/data/runtime-media/` 有真实媒体时返回真实清单 `{ baseImageUrl, baseSha256, stateFrames, items[] }`（每项 `{ stateKey, kind: 'video'\|'image', url, posterUrl, darkUrl, label }`）；没有时返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, items: [], warning }`，不编造运行时帧 | 本地够不到 Muse 运行时，媒体文件由用户亲手放入该目录 | 看线上工作室 getCapabilities 的 runtimeAvatar（MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；或把 `~/workspace/avatars/` 里的真实视频/帧按命名约定复制到 `server/data/runtime-media/` |
+| 读取 Muse 运行时形象 getRuntimeAssets | `server/data/runtime-media/` 有真实媒体时返回真实清单 `{ baseImageUrl, baseSha256, stateFrames, items[] }`（每项 `{ stateKey, kind: 'video'\|'image', url, posterUrl, darkUrl, label }`）；没有时返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, items: [], warning }`，不编造运行时帧 | 本地够不到 Muse 运行时；仓库自带完整示例（19 个文件，见下节），克隆后直接可用 | 看线上工作室 getCapabilities 的 runtimeAvatar（MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；或把 `~/workspace/avatars/` 里的真实视频/帧按命名约定复制到 `server/data/runtime-media/` |
 | 清除 Muse 头像 clearAvatar | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 | 需要访问 Muse 运行时头像 | 在 Muse 本人处清除头像 |
 | 一键导入运行时原图 importRuntimeBase | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 仓库自带一份示例 base.webp（`client/src/assets/runtime/base.webp`），开箱即用 | 把原图复制到 `server/data/runtime-base.webp` 后重试（备用）；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（alreadyPresent） |
 
@@ -64,7 +64,10 @@
   前端用原图 URL 预览。
 - 图片宽高：PNG/GIF/WebP 尽量解析，解析不到时为 null，不阻塞上传。
 
-### 运行时媒体目录 `server/data/runtime-media/`（getRuntimeAssets 的真实来源）
+### 运行时媒体目录 `server/data/runtime-media/`（getRuntimeAssets 的真实来源，已进仓库）
+
+仓库自带完整示例角色数据（2026-11-28，用户决定：给一份完整的角色数据）：
+19 个文件，约 12 MB，克隆后 `getRuntimeAssets` 开箱即用。
 
 命名约定（`state` 取自状态定义，另加 `base`；`-dark` 为深色版）：
 
@@ -158,14 +161,15 @@ server/
     └── CONTRACT.md        # 契约总览
 ```
 
-数据文件（都在 `.gitignore` 里，不提交）：
+数据文件（`studio.db*`、`assets/`、`runtime-base.webp` 在 `.gitignore` 里，不提交；
+`runtime-media/` 是已进仓库的完整示例角色数据，见上节）：
 - `server/data/studio.db` — SQLite，唯一权威元数据
 - `server/data/studio.db-wal` / `-shm` — SQLite WAL 临时文件
 - `server/data/assets/<profileId>/<assetId>.<ext>` — 素材文件
 - `server/data/runtime-base.webp` — 可选：手动放置的运行时原图（供
   importRuntimeBase 用，不提交）
-- `server/data/runtime-media/` — 可选：真实运行时媒体（视频/静态帧/深色版，
-  供 getRuntimeAssets 用，不提交；命名见上节）
+- `server/data/runtime-media/` — 已进仓库的完整示例角色数据（19 个文件，约 12 MB，
+  视频/静态帧/深色版，供 getRuntimeAssets 用；命名见上节）
 
 表：character_profiles、character_settings、state_definitions、
 state_links（槽位链接）、assets、generation_jobs、activations、

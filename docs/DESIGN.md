@@ -1037,7 +1037,8 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `server/src/actions.ts` | 30 个真实动作 + 9 个本地别名 + 分发表 + 全部守则（1155 行） |
 | `server/src/http.ts` | Bun 服务入口：8787，`GET /health`、`POST /actions`、`GET /assets/`（含 `/assets/runtime-media/`，带防目录穿越检查） |
 | `server/src/muse.ts` | Muse 依赖隔离层：四项功能的报错 / warning / 本地原图查找；`getRuntimeAssets` 扫描 `server/data/runtime-media/` 返回真实清单 |
-| `server/data/`（不提交） | 本地运行时数据：`studio.db`（SQLite）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件）、可选的 `runtime-base.webp`（手动放置的原图）、`runtime-media/`（真实运行时媒体，视频/静态帧/深色版，供 `getRuntimeAssets` 用；内有 `README.md` 写明文件约定与恢复方法，见附录 A.12）；删掉整个目录即重置回首开状态 |
+| `server/data/` | 本地运行时数据：`studio.db`（SQLite，不提交）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件，不提交）、可选的 `runtime-base.webp`（手动放置的原图，不提交）；删掉整个目录即重置回首开状态（但会连已进仓库的 `runtime-media/` 一起删，见附录 A.13） |
+| `server/data/runtime-media/`（已提交） | 完整示例角色数据（19 个文件，约 12 MB）：基础原图 + 深色版、7 个状态视频 + 5 个深色视频、5 张静态帧；供 `getRuntimeAssets` 用；内有 `README.md` 写明文件约定与恢复方法 |
 | `node_modules/`（不提交） | 依赖安装目录，`bun install` 生成 |
 | `dist/`（不提交） | `vite build` 产物，用完即删，不提交 |
 
@@ -1179,9 +1180,12 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   `getRuntimeAssets` 实测返回 8 项、`baseSha256` 与 `sha256sum` 一致。
   教训：清理 `server/data/` 时只删测试库（`studio.db*`、`assets/`），不要整目录删；
   `runtime-media/` 的恢复方法写在该目录的 `README.md` 里。】
-- **A.14 仓库自带一份示例素材（2026-11-28，用户决定）。** 此前仓库里 0 个媒体文件，
-  克隆后 `importRuntimeBase` 与 `/assets/runtime/base.webp` 都要手动放图才可用。
-  用户决定给一份示例素材：`client/src/assets/runtime/base.webp`（v1 原图，
-  164690 字节，MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`，与线上 artifact 内置图同字节），
-  `importRuntimeBase` 开箱即用。视频/静态帧/深色版（12 MB）仍只放本地
-  `server/data/runtime-media/`，不进仓库。】
+- **A.14 仓库自带一份完整示例角色数据（2026-11-28，用户决定）。** 此前仓库里
+  0 个媒体文件，克隆后 `importRuntimeBase` 与 `getRuntimeAssets` 都要手动放图才可用。
+  用户先决定给一份示例素材（只放了 `client/src/assets/runtime/base.webp` 一个文件），
+  随即指出一个角色数据本来就是好多份文件，要求提供一份完整的角色数据。
+  最终形态：`server/data/runtime-media/` 里的 19 个文件（基础原图 + 深色版、7 个状态
+  视频 + 5 个深色视频、5 张静态帧，约 12 MB）全部进仓库，`.gitignore` 从整目录忽略
+  改为只忽略 `studio.db*`、`assets/`、`runtime-base.webp`；`getRuntimeAssets` 与
+  `importRuntimeBase` 克隆后都开箱即用。`client/src/assets/runtime/base.webp` 仍保留
+  一份（同一字节），供前端无封面回退与 `importRuntimeBase` 优先读取。】
