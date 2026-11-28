@@ -1,127 +1,47 @@
-# Muse Character Studio 界面规范
+# Muse Character Studio — Art Direction & Brand Design Language
 
-这套规范管的是界面，不管业务契约。业务事实仍以 `docs/DESIGN.md` 为准。改页面时先读这里，再改 `client/src/theme.css`。
+## 1. Real-World Art Direction Study Synthesis
 
-## 场景
+Muse's visual language is synthesized from direct, hands-on study of seven editorial, portfolio, and character design references:
 
-这是一间黑房间。角色图承担全部色彩，控件是近黑的冷灰层，主按钮在深色里反白。焰蓝只出现在焦点、当前项和进度上。参考的是 Midjourney 的图优先和 Krea 的黑房间：画面戏剧化，铬件克制。
+| Reference | Studied Architectural / Interaction Traits | How Synthesized into Muse |
+| :--- | :--- | :--- |
+| **jesperlandberg.com** | `#000` full-bleed spatial stage, infinite 1px perspective floor grid, 4-corner whisper-quiet HUD, monograph detail overlay with sticky left brief + bottom-left **radial scroll-progress ring** + circular `×` close, `cubic-bezier(0.23, 1, 0.32, 1)`. | Spatial Exhibition Stage (`.exhibit-stage`), `.perspective-floor`, 4-corner `.hud-topbar` / `.exhibit-bottom`, and the live SVG `.scroll-ring` anchored at bottom-left of the Character Monograph Spine. |
+| **gilhuybrecht.com** | Sharp `0px` Swiss frames, micro-index numbering (`01`, `02`), **group-spotlight hover dimming** (hovered artwork stays 100%, siblings fade cleanly), 1/3 sticky brief + 2/3 vertical art stack. | Archive Wall `.wall-grid` with `:has(.gallery-plate:hover)` spotlight dimming, `NO.01` plate headers, and the 1/3 Sticky Curatorial Spine + 2/3 Monograph Canvas in `Workspace.tsx`. |
+| **thomasmamfredas.com** | Monumental bottom-left title contrast over `#000` cinema stage, `//` slash editorial navigation prefixes, tabular work index with live hover preview plate. | `.exhibit-headline` scale contrast, `// 展厅 · // 档案 · // 系统` HUD links, and the Archive **Index Mode (`.index-split`)** with sticky hover preview artwork. |
+| **artofgina.com** | Pure `#FFFFFF` gallery paper + `#F4F4F4` uncropped passe-partout framing, `0px` corner radius, full-uncropped `0.96` lightbox. | `Daylight` theme palette, `object-fit: contain` uncropped plates with `mix-blend-mode: multiply` over gallery matte, and full-uncropped `PreviewDialog`. |
+| **johnjagusak.com** | Native-aspect uncropped character studies over pure `#000000` darkroom screening canvas. | `Nocturne` darkroom theme and optical Loupe pure-black / matte / white backdrop switcher. |
+| **siteinspire.com** & **godly.website → recent.design** | Disciplined negative space, gallery passe-partout framing, asymmetric editorial spreads, multi-pane detail inspectors. | Distinct page choreography across all four views (`展厅`, `档案`, `画室`, `系统`) with zero repeated SaaS dashboard card grids. |
 
-默认深色。显式选择浅色时记在 `localStorage` 键 `mcs-ui-theme=light`。
+---
 
-## 颜色
+## 2. Three Brand Visual Worlds (`data-theme`)
 
-深色是默认。浅色由去掉 `html.dark` 切换。
+Users can switch instantly between three bespoke visual worlds via the top-right switcher or `⌘K`:
 
-| 角色 | 深色 | 用途 |
-| --- | --- | --- |
-| 画布 | `#07080a` | 主内容，让角色图成为光源 |
-| 表面 | `#101216` | 顶栏、侧栏、面板 |
-| 次表面 | `#171a21` | 分段控件、搜索底 |
-| 墨色 | `#f4f5f7` | 主文字，也是深色下的主按钮底 |
-| 弱文字 | `#aeb6c4` | 元信息 |
-| 分隔 | `rgb(255 255 255 / 0.08)` | 区域边界 |
-| 焰蓝 | `#4c8dff` | 焦点、当前项、进度，不铺大面积 |
-| 成功 | `#8fd4ae` | 已激活、已连接 |
-| 警告 | `#e6c27a` | 未完成 |
-| 危险 | `#ffb4ab` | 删除确认 |
+1. **`Aircreach · [Black Rock]` (`blackrock`, flagship default)**
+   - **Palette**: Carbon void `#000000` / `#07090E`, stark chalk `#F4F7FB`, original *Black★Rock Shooter* electric azure-cyan soul flame `#00B8FF` (`--flame`).
+   - **Signature Motifs**:
+     - Canonical **Hollow World** perspective checkerboard horizon (`.perspective-floor` in `blackrock` mode).
+     - Custom elongated 5-pointed star SVG emblem (`brsStar`) in the HUD brand mark, theme toggle, and parallax orbital watermark behind the exhibition figure.
+     - Cyan dashed coat-stitch structural hairlines on Swiss headers and the Monograph spine.
+2. **`Daylight` (`daylight`)**
+   - Pure archival gallery paper `#FFFFFF` + `#F4F4F4` passe-partout matte, crisp graphite `#0D0F12` ink, cobalt optical accent `#165CEB`.
+   - Automatically pairs with Muse's light `.mp4` runtime media via `RuntimeMedia`.
+3. **`Nocturne` (`nocturne`)**
+   - Pure Swiss darkroom `#000000` + `#0B0C0F` matte, silver-white `#F2F3F5` typography, muted optical blue `#5C9CFF`.
+   - Automatically pairs with Muse's `-dark.mp4` darkroom runtime videos.
 
-层级靠表面和 1px 分隔，不靠多色块。成功、警告、危险只用于状态。
+---
 
-## 字体
+## 3. Four Distinct View Layouts (Anti-Template Architecture)
 
-界面用系统无衬线，中文回退到苹方、冬青黑、微软雅黑、思源黑体。不加载西文网页字体：它们没有中文字形，本地工具也不该依赖外网。
-
-数字、百分比、计数、哈希使用 `font-variant-numeric: tabular-nums`。标识和哈希用 Cascadia Mono，再回退到系统等宽。
-
-| 层级 | 尺寸 | 字重 |
-| --- | --- | --- |
-| 页面标题 | 28px | 560 |
-| 角色名（检查器） | 18px | 600 |
-| 正文 | 14px | 400 |
-| 控件、说明 | 13px | 500 |
-| 元信息、表头 | 12px | 500–600 |
-
-正文行高 1.5，字距为 0。标题字距不超过 -0.02em。中文标题允许换行，禁止用截断处理角色名。
-
-## 间距、圆角、阴影
-
-间距用 4 的倍数：4、8、12、16、20、24、32。
-
-| 物件 | 圆角 | 阴影 |
-| --- | --- | --- |
-| 按钮、输入、菜单项 | 6px | 无 |
-| 面板 | 8px | 无，只用边框 |
-| 角色立牌 | 2px | 不拉满栅格。名字压在画面上，完成度是底边焰线 |
-| 对话框、命令面板、弹出层 | 10px | 只在浮层上 |
-| 应用壳 | 0 | 无 |
-
-状态条、顶栏、侧栏是贴边的，不是悬浮卡片。
-
-## 图标
-
-全部来自 `client/src/components/icons.tsx`。同一套 1.6px 描边、24 视口。不混用其他图标库，不用 emoji 当图标。只有图标的按钮必须有 `aria-label`。
-
-## 控件尺寸
-
-| 控件 | 高度 |
-| --- | --- |
-| 顶栏 | 48px |
-| 状态栏 | 28px |
-| 按钮、输入（桌面） | 32px |
-| 小按钮 | 28px |
-| 触控（`pointer: coarse`） | 至少 44px |
-| 对话框 | 窄 28rem，宽 48rem |
-| 检查器 | 280–440px，默认 320 |
-| 侧栏 | 展开 216px，折叠 52px |
-
-## 应用壳
-
-根节点占满视口，`body` 不滚动。
-
-```text
-侧栏 | 顶栏（面包屑、搜索、反馈、主题）
-     | 主区域（各页自己的布局）
-     | 状态栏（连接、卡数、激活角色、模式）
-```
-
-主区域按页面选择结构，不套同一种三列卡片：
-
-- 角色库：筛选头固定，封面网格独立滚动。对象是图片，所以用网格，不用表格。
-- 工作台：左侧分区导航、中间工作区、右侧角色检查器。复杂编辑留在整页，不塞进小对话框。
-- 系统：说明加能力表格。这是查阅页，不是仪表盘。
-
-侧栏折叠记在 `mcs-ui-sidebar`。检查器开关记在 `mcs-ui-inspector-open`，宽度记在 `mcs-ui-inspector`。窄于 800px 时侧栏变为抽屉。窄于 1080px 时检查器变为从右侧滑入的面板。
-
-每个滚动区（侧栏导航、主内容、检查器、命令列表）设置 `min-height: 0` 和 `overflow: auto`，并 `overscroll-behavior: contain`。粘性标题放在对应的滚动容器里。
-
-## 交互
-
-相同动作走同一条路。
-
-| 事情 | 形式 |
-| --- | --- |
-| 打开角色 | 进入工作台整页 |
-| 看角色摘要、激活、归档、删除 | 检查器 |
-| 看大图、看设定整合文本 | 对话框 |
-| 删除、归档 | 确认对话框 |
-| 生成、保存设定 | 当前分区里完成，结果用提示 |
-| 全局跳转 | Ctrl/⌘ K，立即出现，不做开场动画 |
-| 筛选角色库 | 页面内搜索，不代替命令面板 |
-
-危险确认用实心危险按钮。检查器里的删除是描边按钮，避免误触。失败提示写明失败原因。
-
-## 动效
-
-| 记号 | 值 |
-| --- | --- |
-| `--ease` | `cubic-bezier(0.4, 0, 0.2, 1)` 颜色 |
-| `--ease-out` | `cubic-bezier(0.23, 1, 0.32, 1)` 进入 |
-| `--ease-drawer` | `cubic-bezier(0.32, 0.72, 0, 1)` 抽屉 |
-| 按下 | 140ms，`scale(0.98)` |
-| 弹出层 | 150ms |
-| 对话框 | 进入 200ms，离开 140ms，从 `scale(0.98)` 而不是 0 |
-| 抽屉 | 220–240ms |
-
-命令面板由键盘频繁打开，不动画。页面切换不做出场位移动画。悬停变色只在精确指针上启用。`prefers-reduced-motion: reduce` 时去掉位移和缩放，保留即时状态。
-
-只动画 `transform` 和 `opacity`，分隔条拖拽除外：宽度是布局，拖动时不补间。
+1. **`展厅` (`ExhibitionHome.tsx`)**: Full-bleed `100vw × 100dvh` borderless spatial stage with rAF-lerped pointer parallax, infinite perspective floor, monumental live video figure, bottom-left scale-contrast title, right vertical state index rail (`01 待机` – `06 基准原图`), and bottom persona switcher.
+2. **`档案` (`App.tsx` · `LibraryView` + `ProfileCard.tsx`)**: Dual-mode archival browser:
+   - **画廊墙 (Wall)**: Sharp `0px` numbered plates with Gil Huybrecht spotlight hover dimming.
+   - **目录索引 (Index)**: Thomas Mamfredas hairline index table paired with a sticky live artwork preview plate.
+3. **`画室` (`Workspace.tsx` + `SettingsForm.tsx`)**: `340px` sticky left Curatorial Spine (identity, activation, numbered vertical chapter nav, live SVG radial scroll ring) + fluid right Monograph Canvas:
+   - `01 展陈图集`: Optical Loupe (`white` / `matte` / `black` backdrop), GPU `clip-path` Split-Curtain Compare Slider, 10-state keyboard-scrubbable filmstrip, and Contact Sheet mode.
+   - `02 人格手稿`: Unboxed hairline-ruled manuscript with 7 chapter jumps, persistent `useDraft`, and compiled prompt snapshot modal.
+   - `03 影像工坊` & `04 参考墙`: Candidate staging area strictly separated from formal assets, and reference moodboard.
+4. **`系统` (`App.tsx` · `SystemView`)**: Architectural spec ledger dynamically driven by `MuseRuntimeProvider.getCapabilities()` and MD5-verified runtime base portrait.

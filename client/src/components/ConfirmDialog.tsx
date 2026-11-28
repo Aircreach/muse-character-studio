@@ -1,6 +1,6 @@
 import { Button, Modal } from './ui'
 
-/** Every destructive action goes through this confirmation. */
+/** Every destructive action passes through this confirmation dialog. */
 export function ConfirmDialog({
   open,
   onOpenChange,
@@ -20,7 +20,7 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={title}>
-      <div className="stack-sm">
+      <div className="stack">
         <p className="prose">{body}</p>
         <p className="meta">已激活配置引用的素材不可删除；删除角色卡前须先解除激活。</p>
         <div className="action-row end">

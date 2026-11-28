@@ -1,9 +1,21 @@
 <!doctype html>
-<html lang="zh-CN" class="dark">
+<html lang="zh-CN" class="dark" data-theme="blackrock">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Muse Character Studio</title>
+    <title>Muse Character Studio — Aircreach</title>
+    <script>
+      try {
+        var saved = localStorage.getItem('mcs-ui-theme');
+        var theme = saved === 'daylight' || saved === 'light'
+          ? 'daylight'
+          : saved === 'nocturne' || saved === 'dark'
+            ? 'nocturne'
+            : 'blackrock';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.classList.toggle('dark', theme !== 'daylight');
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

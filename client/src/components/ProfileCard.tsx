@@ -1,26 +1,26 @@
 import type { CharacterProfile } from '../shared'
 import { Icon } from './icons'
-import { Button } from './ui'
+import { Badge, Button } from './ui'
 import { RuntimeMedia, sourceFromCoverUrl } from './RuntimeMedia'
 
 /**
- * Library card — cover-first. No cover uses the runtime base image.
- * Never a single-character placeholder.
- * The cover renders through RuntimeMedia (video covers play); archived
- * cards are dimmed, flagged, and get a restore button.
+ * Gil Huybrecht × Gina Nguyen Archival Gallery Plate.
+ * Sharp 0px framing, Swiss top micro-index (`01`, `02`), uncropped passe-partout
+ * artwork canvas, and hover group-spotlight dimming controlled by parent `.wall-grid`.
  */
 export function ProfileCard({
   profile,
+  index,
   isActive,
   onOpen,
   onToggleFavorite,
   onRestore,
 }: {
   profile: CharacterProfile
+  index: number
   isActive: boolean
   onOpen: () => void
   onToggleFavorite: () => void
-  /** Archived cards only: restore the card via restoreProfile. */
   onRestore?: () => void
 }) {
   const configured = profile.progress?.configured ?? 0
@@ -28,48 +28,88 @@ export function ProfileCard({
   const pct = Math.round((configured / Math.max(total, 1)) * 100)
   const cover = profile.coverUrl ?? '/assets/runtime/base.webp'
   const coverSource = sourceFromCoverUrl(cover, `${profile.name} 封面`)
+  const plateIndex = String(index).padStart(2, '0')
+
   return (
-    <article className="wall-card" data-active={isActive ? 'true' : 'false'} data-archived={profile.archivedAt ? 'true' : 'false'}>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="fav-btn"
-        data-on={profile.favorite ? 'true' : 'false'}
-        aria-label={profile.favorite ? '取消收藏' : '收藏'}
-        onClick={onToggleFavorite}
-      >
-        <Icon name={profile.favorite ? 'starFill' : 'star'} size={15} />
-      </Button>
-      {profile.archivedAt && onRestore ? (
-        <Button variant="outline" size="sm" className="restore-btn" onClick={onRestore}>
-          恢复
-        </Button>
-      ) : null}
+    <article
+      className="gallery-plate"
+      data-active={isActive ? 'true' : 'false'}
+      data-archived={profile.archivedAt ? 'true' : 'false'}
+    >
+      <div className="plate-top-meta">
+        <span className="plate-top-name">{profile.name}</span>
+        <span className="plate-top-index">
+          {isActive ? `ACTIVE // ${plateIndex}` : `NO.${plateIndex}`}
+        </span>
+      </div>
+
+      <div className="plate-overlay-tools">
+        {profile.archivedAt && onRestore ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore()
+            }}
+          >
+            <Icon name="restore" size={13} />
+            恢复
+          </Button>
+        ) : null}
+        <button
+          type="button"
+          className="fav-square"
+          data-on={profile.favorite ? 'true' : 'false'}
+          aria-label={profile.favorite ? '取消收藏' : '收藏'}
+          aria-pressed={profile.favorite}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleFavorite()
+          }}
+        >
+          <Icon name={profile.favorite ? 'starFill' : 'star'} size={13} />
+        </button>
+      </div>
+
       <button
         type="button"
-        className="wall-card-hit"
+        className="plate-btn"
         onClick={onOpen}
-        aria-label={`打开 ${profile.name} · ${profile.subtitle ?? ''}`}
+        aria-label={`打开 ${profile.name}${profile.subtitle ? ` · ${profile.subtitle}` : ''}`}
       >
-        <div className="media-poster">
-          {coverSource ? (
-            <RuntimeMedia source={coverSource} />
-          ) : (
-            <div className="plate-void">
-              <span className="plate-void-name">{profile.name}</span>
-            </div>
-          )}
-          {isActive ? <span className="plate-flag">当前激活</span> : null}
-          {profile.archivedAt ? <span className={isActive ? 'plate-flag plate-flag-second' : 'plate-flag'}>已归档</span> : null}
-          <div className="poster-caption">
-            <h3 className="card-title">{profile.name}</h3>
-            <div className="poster-line">
-              <p className="poster-sub">{profile.subtitle || '未写副标题'}</p>
-              <span className="poster-pct">{pct}%</span>
-            </div>
-            {profile.tags.length ? <p className="poster-tags">{profile.tags.slice(0, 3).join('  ')}</p> : null}
+        <div className="plate-canvas">
+          <RuntimeMedia
+            source={coverSource}
+            badge={false}
+            emptyTitle="暂无封面"
+            emptyNote="进入画室配置基础形象。"
+          />
+        </div>
+
+        <div className="plate-bottom">
+          <div className="plate-subtitle-row">
+            <span className="plate-sub-label">{profile.subtitle || '默认人格'}</span>
+            <span className="mono">
+              {configured}/{total}
+            </span>
           </div>
-          <div className="plate-meter" aria-hidden>
+          <p className="plate-desc">
+            {profile.description?.trim() || '尚未填写人格摘要，点击进入画室编辑。'}
+          </p>
+          <div className="cluster" style={{ gap: 6 }}>
+            {isActive ? <Badge tone="accent">当前激活</Badge> : null}
+            {profile.archivedAt ? <Badge tone="warn">已归档</Badge> : null}
+            {profile.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="tag-chip">
+                {tag}
+              </span>
+            ))}
+            {profile.tags.length === 0 && !isActive && !profile.archivedAt ? (
+              <span className="mono">ID {profile.id.slice(-6).toUpperCase()}</span>
+            ) : null}
+          </div>
+          <div className="plate-progress" aria-hidden>
             <span style={{ width: `${pct}%` }} />
           </div>
         </div>

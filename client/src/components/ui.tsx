@@ -1,21 +1,25 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Slot } from '@radix-ui/react-slot'
-import { useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import {
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from 'react'
 import { Icon, type IconName } from './icons'
 
-/**
- * Theme primitives. Callers pass variant / size / tone.
- * Visuals live in theme.css (Linear app chrome).
- */
-export type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger'
+export type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger' | 'dangerOutline'
 export type ButtonSize = 'sm' | 'md'
 
 const buttonVariant: Record<ButtonVariant, string> = {
   primary: 'btn-primary',
-  accent: 'btn-primary',
+  accent: 'btn-accent',
   outline: 'btn-outline',
   ghost: 'btn-ghost',
   danger: 'btn-danger',
+  dangerOutline: 'btn-danger-outline',
 }
 
 export function Button({
@@ -36,7 +40,6 @@ export function Button({
   return <Comp className={classes} type={type ?? 'button'} {...props} />
 }
 
-/** Cover image that collapses to `fallback` instead of the browser's broken-image icon. */
 export function MediaImage({
   src,
   alt,
@@ -60,7 +63,7 @@ export function TextInput({ className = '', ...props }: InputHTMLAttributes<HTML
 export function SearchInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className={`search-field ${className}`.trim()}>
-      <Icon name="search" />
+      <Icon name="search" size={15} />
       <input className="field-input" {...props} />
     </label>
   )
@@ -76,30 +79,37 @@ export function SelectInput({ className = '', ...props }: SelectHTMLAttributes<H
 
 export function Field({
   label,
+  counter,
   children,
   wide,
   className = '',
 }: {
   label: string
+  counter?: string
   children: ReactNode
   wide?: boolean
   className?: string
 }) {
   return (
     <label className={`field ${wide ? 'span-2' : ''} ${className}`.trim()}>
-      <span className="field-label">{label}</span>
+      <span className="field-label-row">
+        <span className="field-label">{label}</span>
+        {counter ? <span className="field-counter">{counter}</span> : null}
+      </span>
       {children}
     </label>
   )
 }
 
 export function Panel({
+  id,
   title,
   note,
   children,
   actions,
   className = '',
 }: {
+  id?: string
   title?: string
   note?: string
   children: ReactNode
@@ -107,7 +117,7 @@ export function Panel({
   className?: string
 }) {
   return (
-    <section className={`panel ${className}`.trim()}>
+    <section id={id} className={`panel ${className}`.trim()}>
       {title || actions ? (
         <header className="panel-head">
           <div>
@@ -143,7 +153,7 @@ export function Badge({
   tone = 'neutral',
   children,
 }: {
-  tone?: 'neutral' | 'good' | 'warn' | 'accent'
+  tone?: 'neutral' | 'good' | 'warn' | 'accent' | 'glass'
   children: ReactNode
 }) {
   return <span className={`badge badge-${tone}`}>{children}</span>
@@ -191,7 +201,11 @@ export function Notice({
   children: ReactNode
 }) {
   const toneClass = tone === 'good' ? 'notice notice-good' : 'notice'
-  return <div role="status" className={floating ? `${toneClass} notice-float` : toneClass}>{children}</div>
+  return (
+    <div role="status" className={floating ? `${toneClass} notice-float` : toneClass}>
+      {children}
+    </div>
+  )
 }
 
 export function Segmented({
@@ -225,38 +239,6 @@ export function Segmented({
   )
 }
 
-export function TabBar({
-  value,
-  onChange,
-  options,
-  ariaLabel,
-  className = '',
-}: {
-  value: string
-  onChange: (value: string) => void
-  options: Array<{ value: string; label: string; icon?: IconName }>
-  ariaLabel: string
-  className?: string
-}) {
-  return (
-    <nav className={`tabs ${className}`.trim()} aria-label={ariaLabel}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          className="tab"
-          aria-current={value === o.value ? 'page' : undefined}
-          onClick={() => onChange(o.value)}
-        >
-          {o.icon ? <Icon name={o.icon} size={15} /> : null}
-          {o.label}
-        </button>
-      ))}
-    </nav>
-  )
-}
-
-/** Radix Dialog wrapper — used by PreviewDialog and ConfirmDialog. */
 export function Modal({
   open,
   onOpenChange,

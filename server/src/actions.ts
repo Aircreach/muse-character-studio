@@ -51,17 +51,15 @@ import {
 } from './schema'
 import { insertSeedData, SEED_STATE_DEFS } from './seed'
 import {
-  clearAvatarUnavailable,
-  generateAssetUnavailable,
-  readLocalRuntimeBase,
-  readRuntimeMedia,
+  createLocalMuseProvider,
+  LOCAL_AUDITED_CAPABILITIES,
   RUNTIME_BASE_MD5,
+  type MuseRuntimeProvider,
   type RuntimeBaseFile,
-} from './muse'
+} from './adapters/muse'
 import type {
   ActivationRecord,
   Asset,
-  Capabilities,
   CharacterProfile,
   CharacterSettings,
   GenerationCandidate,
@@ -74,6 +72,13 @@ export interface ActionContext {
   db: Database
   projectRoot: string
   assetsDir: string
+  /** 解耦的 Muse 运行时提供器，由组合根（http.ts / artifact runtime）注入。 */
+  muse?: MuseRuntimeProvider
+}
+
+function getMuse(ctx: ActionContext): MuseRuntimeProvider {
+  if (!ctx.muse) ctx.muse = createLocalMuseProvider(ctx.projectRoot)
+  return ctx.muse
 }
 
 export class ActionError extends Error {}
@@ -94,45 +99,8 @@ function parse<T>(schema: z.ZodType<T>, input: unknown, action: string): T {
 const idSchema = z.string().min(1)
 const tagsSchema = z.array(z.string().min(1).max(30)).max(12).optional()
 
-// ---- 线上能力矩阵（getCapabilities 实测原样，2026-11-26） ----
-export const CAPABILITIES: Capabilities & {
-  darkModeVariants: boolean
-  notes: string[]
-  runtimeAvatar: { label: string; md5: string; width: number; height: number; sourcePath: string; note: string }
-  runtimeStates: Array<{ stateKey: string; name: string; kind: string }>
-} = {
-  mode: 'shared_base',
-  avatarSupported: true,
-  candidateActivation: true,
-  staticImage: true,
-  videoVariants: true,
-  independentStateAssets: false,
-  sharedBaseAvatar: true,
-  candidateIdReusable: false,
-  availableStates: ['idle', 'waking', 'working', 'making_something', 'milestone_level_up'],
-  darkModeVariants: true,
-  notes: [
-    'Muse 头像候选 ID 为一次性凭证：任一候选被激活后，同批全部候选（含已激活者）立即失效，无法靠保存候选 ID 切换版本。',
-    '工作室的 Asset ID 是永久身份：素材字节保存在工作室自己的存储中，不受 Muse 清除头像影响。',
-    '当前 Muse 为 shared_base 模式：只有一个基础形象槽位可同步，其余动画状态由 Muse 内部系统根据基础形象生成，工作室不虚构独立状态槽位。',
-    '在本工作室“激活”角色卡会写入本地激活记录与设定快照；把形象真正同步到 Muse 头像由 Muse 本人通过候选流程完成（可用已保存原图做文件互换精确恢复）。',
-  ],
-  runtimeAvatar: {
-    label: 'Muse 当前运行时形象',
-    md5: '2fb6bdc0c46ff85bdc77bc6285d26d9d',
-    width: 1600,
-    height: 1600,
-    sourcePath: 'workspace/avatars/avatar-1795685697554236405-6.webp',
-    note: '经文件互换恢复的黑岩射手 v1 原图，MD5 与原始激活文件一致。本页展示的运行时状态帧为该形象的真实系统生成素材，只读。',
-  },
-  runtimeStates: [
-    { stateKey: 'idle', name: '待机', kind: '静态帧 + 视频变体（系统生成）' },
-    { stateKey: 'waking', name: '唤醒', kind: '静态帧 + 视频变体（系统生成）' },
-    { stateKey: 'working', name: '工作中', kind: '静态帧 + 视频变体（系统生成）' },
-    { stateKey: 'making_something', name: '制作中', kind: '静态帧 + 视频变体（系统生成）' },
-    { stateKey: 'milestone_level_up', name: '里程碑', kind: '静态帧 + 视频变体（系统生成）' },
-  ],
-}
+/** 兼容导出：能力矩阵的唯一事实来源已迁入 server/src/adapters/muse/local-provider.ts。 */
+export const CAPABILITIES = LOCAL_AUDITED_CAPABILITIES
 
 // ---- 通用读 helpers ----
 
@@ -275,12 +243,12 @@ const getStudio = (ctx: ActionContext) => {
   const result: StudioOverview = {
     profiles: rows.map((r) => profileToDomain(ctx.db, r)),
     activeProfileId: getActiveProfileId(ctx.db),
-    capabilities: CAPABILITIES,
+    capabilities: getMuse(ctx).getCapabilities(),
   }
   return result
 }
 
-const getCapabilities = () => ({ capabilities: CAPABILITIES })
+const getCapabilities = (ctx: ActionContext) => ({ capabilities: getMuse(ctx).getCapabilities() })
 
 const seedStudio = (ctx: ActionContext) => {
   // 线上语义：已有任意 profile 时为 no-op，seeded=false。
@@ -785,9 +753,9 @@ const removeReference = (ctx: ActionContext, input: unknown) => {
   return { deleted: true }
 }
 
-// ---- 生成（依托 Muse，本地明确报错） ----
+// ---- 生成（通过 MuseRuntimeProvider 隔离调用） ----
 
-const generateAsset = (ctx: ActionContext, input: unknown) => {
+const generateAsset = async (ctx: ActionContext, input: unknown) => {
   const v = parse(
     z.object({
       profileId: idSchema,
@@ -798,20 +766,60 @@ const generateAsset = (ctx: ActionContext, input: unknown) => {
     input,
     'generateAsset',
   )
-  getProfileRow(ctx.db, v.profileId)
+  const detail = buildDetail(ctx.db, v.profileId)
   getStateDefByKey(ctx.db, v.stateKey)
-  // 先把这次失败的尝试记成一条任务，再报错：用户能在生成中心看到它失败过，
-  // 而不是假装生成了一张图。
   const jobId = uuidv7()
-  const message =
-    'generateAsset 需要 Muse 的 generate_media 才能生成图片；本地后端无法调用 Muse，也不会生成假图。' +
-    '替代做法：在 Muse 线上工作室里生成候选，或先用 uploadAsset 上传一张真实图片。'
-  ctx.db.run('INSERT INTO generation_jobs (id, profile_id, state_key, status, error, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
-    jobId, v.profileId, v.stateKey, 'error', message, nowIso(),
-  ])
-  void v.stateBrief
-  void v.extra
-  generateAssetUnavailable()
+  try {
+    const media = await getMuse(ctx).generateAsset({
+      profileId: v.profileId,
+      stateKey: v.stateKey,
+      stateBrief: v.stateBrief,
+      extra: v.extra,
+      settingsText: detail.settingsText,
+    })
+    const format = media.mimeType.includes('png') ? 'png' : media.mimeType.includes('jpeg') ? 'jpg' : 'webp'
+    const assetId = uuidv7()
+    const dims = imageDimensions(media.bytes, format)
+    const sha256 = sha256Hex(media.bytes)
+    storeAssetFile(ctx, v.profileId, assetId, format, media.bytes)
+    const row = insertAssetRowWithId(ctx, assetId, {
+      profileId: v.profileId,
+      mediaType: 'image',
+      format,
+      filePath: `assets/${v.profileId}/${assetId}.${format}`,
+      width: dims.width,
+      height: dims.height,
+      fileSize: media.bytes.length,
+      sha256,
+      source: 'generated',
+      prompt: media.prompt,
+      note: null,
+      status: 'candidate',
+      stateKey: v.stateKey,
+    })
+    ctx.db.run(
+      'INSERT INTO generation_jobs (id, profile_id, state_key, status, error, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [jobId, v.profileId, v.stateKey, 'done', null, nowIso()],
+    )
+    const candidate: GenerationCandidate = {
+      id: row.id,
+      profileId: row.profile_id,
+      stateKey: v.stateKey,
+      assetId: row.id,
+      url: `/assets/${row.profile_id}/${row.id}.${row.format}`,
+      prompt: media.prompt,
+      status: 'candidate',
+      createdAt: row.created_at,
+    }
+    return { candidate, jobId }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    ctx.db.run(
+      'INSERT INTO generation_jobs (id, profile_id, state_key, status, error, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [jobId, v.profileId, v.stateKey, 'error', message, nowIso()],
+    )
+    throw err
+  }
 }
 
 // ---- 候选 ----
@@ -876,7 +884,7 @@ const activateProfile = (ctx: ActionContext, input: unknown) => {
   const stateSelections: Record<string, string | null> = {}
   for (const s of detail.slots) stateSelections[s.stateKey] = s.selectedAssetId
   const snapshot = {
-    mode: 'shared_base',
+    mode: getMuse(ctx).getCapabilities().mode,
     baseAssetId,
     baseAssetSha256: baseAsset.sha256,
     stateSelections,
@@ -1028,14 +1036,11 @@ const listGenerationJobs = (ctx: ActionContext, input: unknown) => {
 }
 
 /**
- * getRuntimeAssets（本地别名）：server/data/runtime-media/ 有真实媒体时
- * 返回真实清单；没有时返回 warning 空结果（不编造），见 server/src/muse.ts。
+ * getRuntimeAssets（本地别名）：经 MuseRuntimeProvider 读取真实运行时媒体清单。
  */
-const getRuntimeAssets = (ctx: ActionContext) => readRuntimeMedia(ctx.projectRoot)
+const getRuntimeAssets = (ctx: ActionContext) => getMuse(ctx).getRuntimeAssets()
 
-const clearAvatar = () => {
-  clearAvatarUnavailable()
-}
+const clearAvatar = (ctx: ActionContext) => getMuse(ctx).clearAvatar()
 
 const verifyAssetIntegrity = (ctx: ActionContext, input: unknown) => {
   const { profileId } = parse(z.object({ profileId: idSchema }), input, 'verifyAssetIntegrity')
@@ -1062,7 +1067,7 @@ const verifyAssetIntegrity = (ctx: ActionContext, input: unknown) => {
 const importRuntimeBase = async (ctx: ActionContext, input: unknown) => {
   const { profileId } = parse(z.object({ profileId: idSchema }), input, 'importRuntimeBase')
   getProfileRow(ctx.db, profileId)
-  const found: RuntimeBaseFile = await readLocalRuntimeBase(ctx.projectRoot)
+  const found: RuntimeBaseFile = await getMuse(ctx).readRuntimeBase()
   const sha256 = sha256Hex(found.bytes)
   const md5 = new Bun.CryptoHasher('md5').update(found.bytes).digest('hex')
   const existing = ctx.db.query('SELECT * FROM assets WHERE profile_id = ? AND sha256 = ? AND status = ?').get(profileId, sha256, 'asset') as DbAssetRow | null
@@ -1100,7 +1105,7 @@ export type ActionHandler = (ctx: ActionContext, input: unknown) => unknown | Pr
 export const REAL_ACTIONS: Record<string, ActionHandler> = {
   getStudio: (ctx) => getStudio(ctx),
   getProfileDetail,
-  getCapabilities: () => getCapabilities(),
+  getCapabilities: (ctx) => getCapabilities(ctx),
   seedStudio: (ctx) => seedStudio(ctx),
   createProfile,
   updateProfile,
@@ -1145,7 +1150,7 @@ export const LOCAL_ALIASES: Record<string, ActionHandler> = {
   listActivations,
   listGenerationJobs,
   getRuntimeAssets,
-  clearAvatar: () => clearAvatar(),
+  clearAvatar: (ctx) => clearAvatar(ctx),
   importRuntimeBase,
   verifyAssetIntegrity,
 }

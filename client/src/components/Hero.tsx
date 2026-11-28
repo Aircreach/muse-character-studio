@@ -1,68 +1,102 @@
 import type { CharacterProfile } from '../shared'
 import { Icon } from './icons'
 import { Badge, Button, StatusMark } from './ui'
-import { RuntimeMedia, sourceFromCoverUrl } from './RuntimeMedia'
+import { RuntimeMedia, sourceFromCoverUrl, type RuntimeMediaSource } from './RuntimeMedia'
 
 /**
- * Workspace inspector — image on top, actions under it.
- * Title wraps: never truncate `.active-profile-title` (390px fix).
- * The cover renders through RuntimeMedia, so a video cover plays
- * instead of showing a broken image.
+ * Character Identity Plinth — Sticky portrait showcase + activation & metadata actions.
+ * `.active-profile-title` wraps freely across all widths (390px safe).
  */
 export function Hero({
   profile,
   isActive,
   coverUrl,
   onActivate,
-  onEditProfile,
+  onDeactivate,
+  onEditInfo,
+  onJumpSettings,
+  onPreview,
   activating,
+  deactivating,
 }: {
   profile: CharacterProfile
   isActive: boolean
   coverUrl: string
   onActivate: () => void
-  onEditProfile: () => void
+  onDeactivate: () => void
+  onEditInfo: () => void
+  onJumpSettings: () => void
+  onPreview: (source: RuntimeMediaSource, label: string) => void
   activating: boolean
+  deactivating: boolean
 }) {
   const coverSource = sourceFromCoverUrl(coverUrl, `${profile.name} 主视觉`)
+
   return (
-    <header className="panel inspector">
-      <div className="media-portrait">
+    <header className="hero-plinth">
+      <div className="hero-portrait-stage">
+        <RuntimeMedia
+          source={coverSource}
+          badge={false}
+          emptyTitle="暂无封面"
+          emptyNote="本地没有运行时原图，见系统页说明。"
+          onActivate={(s) => onPreview(s, `${profile.name}${profile.subtitle ? ` · ${profile.subtitle}` : ''}`)}
+        />
+        <div className="hero-portrait-badges">
+          {isActive ? <Badge tone="accent">当前激活</Badge> : <span />}
+          {profile.archivedAt ? <Badge tone="warn">已归档</Badge> : null}
+        </div>
         {coverSource ? (
-          <RuntimeMedia source={coverSource} emptyTitle="暂无封面" emptyNote="本地没有运行时原图，见系统页说明。" />
-        ) : (
-          <div className="plate-void" />
-        )}
-        {isActive ? (
-          <span className="media-badges">
-            <Badge tone="good">当前激活</Badge>
+          <span className="hero-zoom-hint" aria-hidden>
+            <Icon name="expand" size={14} />
           </span>
         ) : null}
       </div>
-      <div className="card-body">
-        <h2 className="active-profile-title">
-          {profile.name}
-          {profile.subtitle ? <span className="title-aside"> · {profile.subtitle}</span> : null}
-        </h2>
-        {profile.description ? <p className="prose">{profile.description}</p> : null}
+
+      <div className="hero-body">
+        <div className="stack-sm">
+          <h1 className="active-profile-title">
+            {profile.name}
+            {profile.subtitle ? <span className="title-aside"> · {profile.subtitle}</span> : null}
+          </h1>
+          {profile.description ? <p className="prose">{profile.description}</p> : null}
+        </div>
+
         <div className="cluster">
           <StatusMark tone={isActive ? 'good' : 'neutral'} label={isActive ? '已激活 · 本地记录' : '未激活'} />
           {profile.tags.map((t) => (
-            <Badge key={t}>{t}</Badge>
+            <span key={t} className="tag-chip">
+              {t}
+            </span>
           ))}
         </div>
-        <div className="inspector-actions">
-          <Button variant={isActive ? 'outline' : 'primary'} onClick={onActivate} disabled={activating || isActive} aria-busy={activating}>
-            <Icon name="check" />
-            {activating ? '激活中…' : isActive ? '已激活' : '激活此角色'}
-          </Button>
-          <Button variant="outline" onClick={onEditProfile}>
-            <Icon name="sliders" />
-            编辑资料
-          </Button>
+
+        <div className="hero-actions">
+          {isActive ? (
+            <Button variant="outline" onClick={onDeactivate} disabled={deactivating} aria-busy={deactivating}>
+              <Icon name="power" size={15} />
+              {deactivating ? '解除中…' : '解除当前激活'}
+            </Button>
+          ) : (
+            <Button variant="accent" onClick={onActivate} disabled={activating || Boolean(profile.archivedAt)} aria-busy={activating}>
+              <Icon name="check" size={15} />
+              {activating ? '激活中…' : '激活此角色'}
+            </Button>
+          )}
+          <div className="hero-actions-row">
+            <Button variant="outline" size="sm" onClick={onEditInfo}>
+              <Icon name="edit" size={14} />
+              编辑资料
+            </Button>
+            <Button variant="outline" size="sm" onClick={onJumpSettings}>
+              <Icon name="sliders" size={14} />
+              角色设定
+            </Button>
+          </div>
         </div>
-        <p className="meta">
-          激活只写本地记录与设定快照，不直接改 Muse 运行时头像；运行时同步仍走候选流程（原图恢复用换文件法）。
+
+        <p className="hero-note">
+          激活仅写入本地记录与设定快照，不直接改写 Muse 运行时头像；运行时同步仍走候选流程。
         </p>
       </div>
     </header>

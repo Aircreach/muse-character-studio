@@ -125,6 +125,17 @@ export interface Capabilities {
   sharedBaseAvatar: boolean
   candidateIdReusable: boolean
   availableStates: string[]
+  darkModeVariants?: boolean
+  notes?: string[]
+  runtimeAvatar?: {
+    label: string
+    md5: string
+    width: number
+    height: number
+    sourcePath: string
+    note: string
+  }
+  runtimeStates?: Array<{ stateKey: string; name: string; kind: string }>
 }
 
 /** Audited constants (server hard-coded, 2026-11-26). Do not invent support. */
@@ -203,6 +214,7 @@ export interface StudioOverview {
 }
 
 export type View =
+  | { kind: 'home' }
   | { kind: 'library' }
   | { kind: 'workspace'; id: string }
   | { kind: 'system' }

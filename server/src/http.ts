@@ -22,6 +22,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join, resolve, extname } from 'node:path'
 import { initDb, openDb } from './schema'
 import { dispatchAction, type ActionContext } from './actions'
+import { createLocalMuseProvider } from './adapters/muse'
 
 export const PROJECT_ROOT = resolve(import.meta.dir, '../..')
 export const DATA_DIR = join(PROJECT_ROOT, 'server/data')
@@ -43,7 +44,9 @@ export function createContext(): ActionContext {
   mkdirSync(ASSETS_DIR, { recursive: true })
   const db: Database = openDb(DB_PATH)
   initDb(db)
-  return { db, projectRoot: PROJECT_ROOT, assetsDir: ASSETS_DIR }
+  // 组合根：将 Muse 运行时交互以 Provider 形式注入核心业务层，实现解耦。
+  const muse = createLocalMuseProvider(PROJECT_ROOT)
+  return { db, projectRoot: PROJECT_ROOT, assetsDir: ASSETS_DIR, muse }
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -51,6 +54,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 export function createServer(ctx: ActionContext) {
+  const muse = ctx.muse ?? createLocalMuseProvider(ctx.projectRoot)
   return Bun.serve({
     port: PORT,
     async fetch(req) {
@@ -62,11 +66,11 @@ export function createServer(ctx: ActionContext) {
           ok: true,
           service: 'muse-character-studio-server',
           mode: 'local',
+          museProvider: muse.kind,
           port: PORT,
           db: DB_PATH,
           profiles: count,
-          warning:
-            '本地后端：generateAsset / clearAvatar 依托 Muse，本地会明确报错；getRuntimeAssets 在 server/data/runtime-media/ 有真实媒体时返回真实清单，没有时返回 warning 空结果，绝不伪造（见 server/BACKEND.md）。',
+          warning: muse.getHealthWarning(),
         })
       }
 
