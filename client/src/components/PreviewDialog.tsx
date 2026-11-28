@@ -1,30 +1,33 @@
 import { Modal } from './ui'
-import { mediaKindFromUrl } from './RuntimeMedia'
+import { RuntimeMedia, type RuntimeMediaSource } from './RuntimeMedia'
 
-/** High-resolution preview — click any media card to open it. Video plays with controls. */
+/**
+ * High-resolution preview — click any media card to open it.
+ * 预览走 RuntimeMedia（controls 模式）：传完整的展示源，深色预览播
+ * darkUrl、失败回退 poster；绝不只传 url 再按扩展名拼裸 <video>/<img>。
+ */
 export function PreviewDialog({
   open,
   onOpenChange,
-  url,
+  source,
   label,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  url: string | null
+  /** 完整的展示源（含 darkUrl / posterUrl），由调用方从 RuntimeMedia 传来。 */
+  source: RuntimeMediaSource | null
   label: string
 }) {
-  const isVideo = url !== null && mediaKindFromUrl(url) === 'video'
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={label} wide>
-      {url ? (
-        isVideo ? (
-          <video className="preview-video" src={url} controls autoPlay loop playsInline />
-        ) : (
-          <img className="preview-img" src={url} alt={label} />
-        )
-      ) : (
-        <p className="meta">暂无图片。</p>
-      )}
+      <RuntimeMedia
+        source={source}
+        mode="controls"
+        className="preview-media"
+        badge={false}
+        emptyTitle="暂无媒体"
+        emptyNote="该媒体没有可预览的文件。"
+      />
     </Modal>
   )
 }

@@ -38,12 +38,20 @@ export function Workspace({
 }) {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('gallery')
-  const [preview, setPreview] = useState<{ url: string; label: string } | null>(null)
+  const [preview, setPreview] = useState<{ source: RuntimeMediaSource; label: string } | null>(null)
   const [confirm, setConfirm] = useState<{ title: string; body: string; confirmLabel?: string; onConfirm: () => void } | null>(null)
   const [showTech, setShowTech] = useState(false)
   const [activationNote, setActivationNote] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
+  /**
+   * 上传模式：'add' 只新增素材；'replace' 上传后立即把新文件选为基础形象
+   * （uploadAsset select=true），即画廊 base 卡“替换”按钮的真实行为。
+   * 旧版 onCompare={() => undefined} 是空操作，已删掉。
+   * 注意：所有 Hooks 必须在任何条件返回之前声明——首次加载时若本声明
+   * 不执行、加载完成后再执行，会违反 Hooks 顺序，工作台黑屏。
+   */
+  const fileMode = useRef<'add' | 'replace'>('add')
   const narrow = useMediaQuery('(max-width: 1080px)')
   const [inspectorOpen, setInspectorOpen] = useState(() => {
     if (typeof window === 'undefined') return true
@@ -186,12 +194,6 @@ export function Workspace({
     )
   }
 
-  /**
-   * 上传模式：'add' 只新增素材；'replace' 上传后立即把新文件选为基础形象
-   * （uploadAsset select=true），即画廊 base 卡“替换”按钮的真实行为。
-   * 旧版 onCompare={() => undefined} 是空操作，已删掉。
-   */
-  const fileMode = useRef<'add' | 'replace'>('add')
   const onUploadFile = async (file: File) => {
     const mode = fileMode.current
     fileMode.current = 'add'
@@ -269,7 +271,7 @@ export function Workspace({
                   def={def}
                   slot={d.slots.find((s) => s.stateKey === def.stateKey)}
                   runtimeMedia={def.runtimeStateKey ? runtimeMedia.get(def.runtimeStateKey) ?? null : null}
-                  onPreview={(url, label) => setPreview({ url, label })}
+                  onPreview={(source, label) => setPreview({ source, label })}
                   onSelectAsset={async (assetId) => {
                     try {
                       await api.selectAsset({ profileId, stateKey: def.stateKey, assetId })
@@ -483,7 +485,7 @@ export function Workspace({
         }}
       />
 
-      <PreviewDialog open={preview != null} onOpenChange={(o) => !o && setPreview(null)} url={preview?.url ?? null} label={preview?.label ?? ''} />
+      <PreviewDialog open={preview != null} onOpenChange={(o) => !o && setPreview(null)} source={preview?.source ?? null} label={preview?.label ?? ''} />
       {confirm ? (
         <ConfirmDialog
           open

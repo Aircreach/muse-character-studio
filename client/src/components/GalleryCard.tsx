@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { StateDefinition, StateSlot } from '../shared'
 import { Icon } from './icons'
 import { Badge, Button, StatusMark } from './ui'
-import { mediaKindFromUrl, RuntimeMedia, sourceFromAsset, type RuntimeMediaSource } from './RuntimeMedia'
+import { RuntimeMedia, sourceFromAsset, type RuntimeMediaSource } from './RuntimeMedia'
 
 /**
  * Gallery card — media-first, aspect 4/3, object-cover.
@@ -28,7 +28,8 @@ export function GalleryCard({
   slot: StateSlot | undefined
   /** 该状态的真实运行时媒体（getRuntimeAssets 的 items 元素）；没有时为 null。 */
   runtimeMedia?: RuntimeMediaSource | null
-  onPreview: (url: string, label: string) => void
+  /** 预览传完整的展示源（含 darkUrl / posterUrl），预览里播深色版。 */
+  onPreview: (source: RuntimeMediaSource, label: string) => void
   onSelectAsset: (assetId: string) => void
   onUpload: () => void
   onGenerate: () => void
@@ -65,7 +66,7 @@ export function GalleryCard({
           emptyTitle={empty.title}
           emptyNote={empty.note}
           emptyIcon={empty.icon}
-          onActivate={(s) => onPreview(s.url, `${def.name} · ${s.label}`)}
+          onActivate={(s) => onPreview(s, `${def.name} · ${s.label}`)}
         />
         <div className="media-badges">
           {isBase ? <Badge tone="accent">可配置</Badge> : <Badge tone="good">自动驱动</Badge>}
@@ -99,11 +100,13 @@ export function GalleryCard({
                 aria-pressed={a.isSelected}
               >
                 {a.url ? (
-                  mediaKindFromUrl(a.url) === 'video' ? (
-                    <video src={a.url} muted preload="metadata" />
-                  ) : (
-                    <img src={a.url} alt="" />
-                  )
+                  <RuntimeMedia
+                    source={sourceFromAsset(a)}
+                    mode="still"
+                    badge={false}
+                    emptyTitle="素材无预览"
+                    emptyNote="该素材没有可显示的文件。"
+                  />
                 ) : null}
               </button>
             ))}

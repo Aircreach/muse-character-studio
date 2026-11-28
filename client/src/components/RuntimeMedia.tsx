@@ -7,9 +7,11 @@ import { Icon, type IconName } from './icons'
  * 画廊、封面、参考素材、预览里的每一张图/一段视频都走这里，组件内部
  * 按类型判断怎么播、怎么标，调用方不再自己拼 <img> / <video>：
  *
- * - video（mp4/webm）：<video autoplay loop muted playsInline>，有
- *   poster 时用静态帧作封面；深色界面有 darkUrl 时播深色版，没有就
- *   回退浅色版。加载失败时回退 poster，再失败才显示占位。
+ * - video（mp4/webm）：有 poster 时用静态帧作封面；深色界面有 darkUrl
+ *   时播深色版，没有就回退浅色版。加载失败时回退 poster，再失败才显示占位。
+ *   播放模式由 mode 决定：autoplay（默认，画廊/封面：自动循环静音播）、
+ *   controls（预览：带控制条、可手动取消静音）、still（缩略图：不自动
+ *   播，只显示 poster 或首帧）。图片不受 mode 影响。
  * - image（webp/png/jpeg/gif）：<img>；深色版同理回退。
  * - source 为 null（无媒体）：绝不留黑框，渲染带图标 + 标题 + 说明
  *   的占位（.media-empty），调用方必须给 emptyTitle/emptyNote 写清
@@ -81,6 +83,8 @@ export function sourceFromCoverUrl(url: string, alt: string): RuntimeMediaSource
   }
 }
 
+export type RuntimeMediaMode = 'autoplay' | 'controls' | 'still'
+
 export function RuntimeMedia({
   source,
   className = 'media-img',
@@ -89,6 +93,7 @@ export function RuntimeMedia({
   emptyNote,
   emptyIcon = 'image',
   onActivate,
+  mode = 'autoplay',
 }: {
   source: RuntimeMediaSource | null
   className?: string
@@ -98,6 +103,11 @@ export function RuntimeMedia({
   emptyNote?: string
   emptyIcon?: IconName
   onActivate?: (source: RuntimeMediaSource) => void
+  /**
+   * 视频播放模式：autoplay 自动循环静音播；controls 带控制条的预览播
+   * 放（可手动取消静音）；still 不自动播，只显示 poster 或首帧（缩略图）。
+   */
+  mode?: RuntimeMediaMode
 }) {
   const [dark] = useState(isDarkDocument)
   const [failed, setFailed] = useState<string | null>(null)
@@ -131,9 +141,10 @@ export function RuntimeMedia({
           className={`${className} media-video`}
           src={playUrl}
           poster={poster ?? undefined}
-          autoPlay
-          loop
-          muted
+          autoPlay={mode !== 'still'}
+          loop={mode !== 'still'}
+          muted={mode === 'autoplay'}
+          controls={mode === 'controls'}
           playsInline
           preload="metadata"
           onError={() => setFailed(playUrl)}
