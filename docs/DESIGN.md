@@ -97,14 +97,14 @@ Vite 开发服务器（5173，vite.config.ts）
   │  GET  /health          健康检查（含卡数与 Muse 依赖警告）
   │  POST /actions         分发到 actions.ts（30 真实动作 + 9 本地别名）
   │  GET  /assets/<id>/…  server/data/assets/ 下的素材文件
-  │  GET  /assets/runtime/base.webp（仓库里没这张图时返回 404 + 提示）
+  │  GET  /assets/runtime/base.webp（仓库自带示例 base.webp；删掉后返回 404 + 提示）
   ▼
 SQLite（server/data/studio.db，WAL 模式）
   │  9 张表（见第 5 节）；素材文件在 server/data/assets/<profileId>/<assetId>.<ext>
   │
   ├─ 依赖 Muse 的功能（server/src/muse.ts 集中隔离）
   │    generateAsset → 报错 [MUSE_DEPENDENT]；clearAvatar → 报错；
-  │    getRuntimeAssets → warning 空结果；importRuntimeBase → 需本地 base.webp
+  │    getRuntimeAssets → 无 runtime-media 时 warning 空结果；importRuntimeBase → 优先读仓库自带的示例 base.webp
   └─ 不依赖 Muse 的功能：全部本地完成（设定、画廊、激活记录、导入导出）
 ```
 
@@ -961,7 +961,7 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | 生成图片 `generateAsset` | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败记一条 `status='error'` 的任务，可在生成中心的技术信息里看到任务数 | 需要 Muse 的 `generate_media`，本地调不到 | 在线上工作室生成候选；或用 `uploadAsset` 上传真实图片 |
 | 读取 Muse 运行时形象 `getRuntimeAssets` | 返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, warning }`，不编造运行时帧 | 本地够不到 Muse 运行时 | 看线上工作室 `getCapabilities` 的 `runtimeAvatar`（MD5 `2fb6…`） |
 | 清除 Muse 头像 `clearAvatar` | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 | 需要访问 Muse 运行时头像 | 在 Muse 本人处清除头像；工作室的本地素材不受影响 |
-| 一键导入运行时原图 `importRuntimeBase` | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 本地仓库不存 164690 字节大图 | 把原图复制到 `server/data/runtime-base.webp` 后重试；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（`alreadyPresent`） |
+| 一键导入运行时原图 `importRuntimeBase` | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 仓库自带一份示例 base.webp（164690 字节，见 2.2），开箱即用 | 把原图复制到 `server/data/runtime-base.webp` 后重试（备用）；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（`alreadyPresent`） |
 
 补充说明：
 
@@ -1024,7 +1024,8 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `client/src/components/GeneratePanel.tsx` | 生成表单与候选列表（采纳/丢弃）；候选缩略图仍是裸 `<img>`，未走 `RuntimeMedia` |
 | `client/src/components/PreviewDialog.tsx` | 高清预览对话框（`object-contain`，最大高度 70vh）；接受完整 `RuntimeMediaSource`，用 `controls` 模式渲染 |
 | `client/src/components/ConfirmDialog.tsx` | 危险操作确认框（归档/删除/删素材共用） |
-| `client/src/assets/runtime/README.md` | 运行时原图 `base.webp` 的说明（来源、尺寸、MD5）；目录里没有大图文件本身 |
+| `client/src/assets/runtime/README.md` | 运行时原图 `base.webp` 的说明（来源、尺寸、MD5）；目录里已带一份示例 base.webp（v1 原图，2026-11-28 用户决定给一份示例素材） |
+| `client/src/assets/runtime/base.webp` | 示例素材：v1 原图（164690 字节，MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；`importRuntimeBase` 开箱即用的来源，前端无封面时的回退图 |
 | `docs/DESIGN_SYSTEM.md` | 设计系统说明（4c86cd0 新增，与黑房间画廊重构同批） |
 | `.cursor/skills/product-ui-system/SKILL.md` | Cursor 产品 UI 规范 skill（4c86cd0 新增） |
 | `server/BACKEND.md` | 本地后端说明：30 个真实动作清单、与线上差异、警告表、启动与重置、自查结果 |
@@ -1178,3 +1179,9 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
   `getRuntimeAssets` 实测返回 8 项、`baseSha256` 与 `sha256sum` 一致。
   教训：清理 `server/data/` 时只删测试库（`studio.db*`、`assets/`），不要整目录删；
   `runtime-media/` 的恢复方法写在该目录的 `README.md` 里。】
+- **A.14 仓库自带一份示例素材（2026-11-28，用户决定）。** 此前仓库里 0 个媒体文件，
+  克隆后 `importRuntimeBase` 与 `/assets/runtime/base.webp` 都要手动放图才可用。
+  用户决定给一份示例素材：`client/src/assets/runtime/base.webp`（v1 原图，
+  164690 字节，MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`，与线上 artifact 内置图同字节），
+  `importRuntimeBase` 开箱即用。视频/静态帧/深色版（12 MB）仍只放本地
+  `server/data/runtime-media/`，不进仓库。】

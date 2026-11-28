@@ -56,7 +56,7 @@
 | 生成图片 generateAsset | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败会记一条 status=error 的任务，可在生成中心看到 | 需要 Muse 的 generate_media，本地调不到 | 在线上工作室生成候选；或用 uploadAsset 上传真实图片 |
 | 读取 Muse 运行时形象 getRuntimeAssets | `server/data/runtime-media/` 有真实媒体时返回真实清单 `{ baseImageUrl, baseSha256, stateFrames, items[] }`（每项 `{ stateKey, kind: 'video'\|'image', url, posterUrl, darkUrl, label }`）；没有时返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, items: [], warning }`，不编造运行时帧 | 本地够不到 Muse 运行时，媒体文件由用户亲手放入该目录 | 看线上工作室 getCapabilities 的 runtimeAvatar（MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；或把 `~/workspace/avatars/` 里的真实视频/帧按命名约定复制到 `server/data/runtime-media/` |
 | 清除 Muse 头像 clearAvatar | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 | 需要访问 Muse 运行时头像 | 在 Muse 本人处清除头像 |
-| 一键导入运行时原图 importRuntimeBase | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 本地仓库不存 164690 字节大图 | 把原图复制到 `server/data/runtime-base.webp` 后重试；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（alreadyPresent） |
+| 一键导入运行时原图 importRuntimeBase | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 仓库自带一份示例 base.webp（`client/src/assets/runtime/base.webp`），开箱即用 | 把原图复制到 `server/data/runtime-base.webp` 后重试（备用）；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（alreadyPresent） |
 
 其他说明：
 - `setCover` 只是展示用封面，不是 Muse 头像；`activateProfile` 只写本地记录。
