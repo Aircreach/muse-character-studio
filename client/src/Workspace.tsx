@@ -10,6 +10,7 @@ import { GalleryCard } from './components/GalleryCard'
 import { GeneratePanel } from './components/GeneratePanel'
 import { Hero } from './components/Hero'
 import { PreviewDialog } from './components/PreviewDialog'
+import { RuntimeMedia, sourceFromAsset, type RuntimeMediaSource } from './components/RuntimeMedia'
 import { SettingsForm } from './components/SettingsForm'
 
 type Tab = 'gallery' | 'settings' | 'generate' | 'references'
@@ -63,6 +64,32 @@ export function Workspace({
   })
 
   const detail = useQuery({ queryKey: profileKey(profileId), queryFn: () => api.getProfileDetail({ id: profileId }) })
+  /**
+   * 真实运行时媒体（getRuntimeAssets）：server/data/runtime-media/ 有文件时
+   * 返回真实清单；没有时返回 warning 空结果；线上不发布该动作时查询失败，
+   * 两种情况画廊都显示明确占位——不用基础图冒充各状态帧（见附录 A.7）。
+   * 线上部署时由构建器在适配层实现该动作并返回内置媒体，见 BACKEND.md。
+   */
+  const runtimeAssets = useQuery({
+    queryKey: ['runtime-assets'],
+    queryFn: () => api.getRuntimeAssets({}),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+  const runtimeMedia = useMemo(() => {
+    const map = new Map<string, RuntimeMediaSource>()
+    for (const item of runtimeAssets.data?.items ?? []) {
+      map.set(item.stateKey, {
+        kind: item.kind,
+        url: item.url,
+        posterUrl: item.posterUrl,
+        darkUrl: item.darkUrl,
+        label: item.label,
+        alt: item.stateKey,
+      })
+    }
+    return map
+  }, [runtimeAssets.data])
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: profileKey(profileId) })
     qc.invalidateQueries({ queryKey: ['studio'] })
@@ -147,13 +174,6 @@ export function Workspace({
   const d = detail.data
   const baseSlot = useMemo(() => d?.slots.find((s) => s.stateKey === 'base'), [d])
   const coverUrl = d?.profile.coverUrl ?? '/assets/runtime/base.webp'
-  const runtimeFrames: Record<string, string> = {
-    idle: '/assets/runtime/base.webp',
-    waking: '/assets/runtime/base.webp',
-    working: '/assets/runtime/base.webp',
-    making_something: '/assets/runtime/base.webp',
-    milestone_level_up: '/assets/runtime/base.webp',
-  }
 
   if (detail.isLoading) return <LoadingNote>加载角色工作台…</LoadingNote>
   if (detail.isError || !d) {
@@ -166,11 +186,19 @@ export function Workspace({
     )
   }
 
+  /**
+   * 上传模式：'add' 只新增素材；'replace' 上传后立即把新文件选为基础形象
+   * （uploadAsset select=true），即画廊 base 卡“替换”按钮的真实行为。
+   * 旧版 onCompare={() => undefined} 是空操作，已删掉。
+   */
+  const fileMode = useRef<'add' | 'replace'>('add')
   const onUploadFile = async (file: File) => {
+    const mode = fileMode.current
+    fileMode.current = 'add'
     try {
-      await api.uploadAsset({ profileId, stateKey: 'base', file })
+      await api.uploadAsset({ profileId, stateKey: 'base', file, select: mode === 'replace' })
       invalidate()
-      onToast('素材已上传')
+      onToast(mode === 'replace' ? '已替换基础形象' : '素材已上传')
     } catch (e) {
       onToast(`上传失败：${e instanceof Error ? e.message : '未知错误'}`)
     }
@@ -231,7 +259,8 @@ export function Workspace({
             </div>
             <p className="prose">
               基础形象展示当前选定素材；其余状态展示 Muse 实际运行时表现，自动驱动、无需手动配图。
-              未配置的本地素材不会伪装成 Muse 当前形象；需要对比时才显示双图对照。
+              有真实运行时媒体时播放视频或显示该状态的帧；没有时卡片会明确标注暂无画面，
+              不会用基础图冒充。未配置的本地素材不会伪装成 Muse 当前形象；需要对比时才显示双图对照。
             </p>
             <div className="gallery-grid">
               {d.stateDefs.map((def) => (
@@ -239,7 +268,7 @@ export function Workspace({
                   key={def.stateKey}
                   def={def}
                   slot={d.slots.find((s) => s.stateKey === def.stateKey)}
-                  runtimeFrameUrl={def.runtimeStateKey ? runtimeFrames[def.runtimeStateKey] : null}
+                  runtimeMedia={def.runtimeStateKey ? runtimeMedia.get(def.runtimeStateKey) ?? null : null}
                   onPreview={(url, label) => setPreview({ url, label })}
                   onSelectAsset={async (assetId) => {
                     try {
@@ -249,9 +278,15 @@ export function Workspace({
                       onToast(`选择失败：${error instanceof Error ? error.message : '未知错误'}`)
                     }
                   }}
-                  onUpload={() => fileRef.current?.click()}
+                  onUpload={() => {
+                    fileMode.current = 'add'
+                    fileRef.current?.click()
+                  }}
                   onGenerate={() => setTab('generate')}
-                  onCompare={() => undefined}
+                  onReplace={() => {
+                    fileMode.current = 'replace'
+                    fileRef.current?.click()
+                  }}
                 />
               ))}
             </div>
@@ -265,7 +300,7 @@ export function Workspace({
               initial={d.settings}
               settingsText={d.settingsText}
               saving={saveSettings.isPending}
-              onSave={(patch) => saveSettings.mutate(patch)}
+              onSave={(patch) => saveSettings.mutateAsync(patch)}
             />
           ) : (
             <EmptyState title="暂无设定" body="此角色卡还没有设定记录，请先保存一次设定。" />
@@ -278,7 +313,7 @@ export function Workspace({
             stateDefs={d.stateDefs}
             candidates={d.candidates}
             generating={generate.isPending}
-            onGenerate={(stateKey, stateBrief, extra) => generate.mutate({ stateKey, stateBrief, extra })}
+            onGenerate={(stateKey, stateBrief, extra) => generate.mutateAsync({ stateKey, stateBrief, extra })}
             onAdopt={(candidateId, stateKey) => adopt.mutate({ candidateId, stateKey })}
             onDiscard={async (candidateId) => {
               await api.discardCandidate({ candidateId })
@@ -290,11 +325,14 @@ export function Workspace({
         {tab === 'references' ? (
           <ReferencesTab
             assets={d.references}
-            onUpload={() => fileRef.current?.click()}
+            onUpload={() => {
+              fileMode.current = 'add'
+              fileRef.current?.click()
+            }}
             onDelete={(a: Asset) =>
               setConfirm({
                 title: '删除参考素材？',
-                body: `将删除「${a.filePath}」。已激活配置引用的素材不可删除，删除后可在回收站恢复（30 天）。`,
+                body: `将删除「${a.filePath}」。删除是永久操作：文件、全部槽位链接与参考标记都会被删除，无法恢复。已激活配置引用的素材不可删除。`,
                 onConfirm: async () => {
                   try {
                     await api.deleteAsset({ profileId, assetId: a.id })
@@ -481,11 +519,14 @@ function ReferencesTab({
         <div className="tile-grid">
           {assets.map((a) => (
             <figure key={a.id} className="panel gallery-card">
-              {a.url ? (
-                <div className="media-11">
-                  <img className="media-img" src={a.url} alt="" loading="lazy" />
-                </div>
-              ) : null}
+              <div className="media-11">
+                <RuntimeMedia
+                  source={sourceFromAsset(a, '参考素材')}
+                  badge={false}
+                  emptyTitle="素材无预览"
+                  emptyNote="该素材没有可显示的文件。"
+                />
+              </div>
               <figcaption className="ref-cap">
                 <span className="meta ellipsis">{a.sha256 ? `SHA-256 ${a.sha256.slice(0, 12)}…` : a.format} · {a.source}</span>
                 <Button variant="danger" size="sm" onClick={() => onDelete(a)}>删除</Button>

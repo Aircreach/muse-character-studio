@@ -27,6 +27,7 @@ export type IconName =
   | 'bell'
   | 'sun'
   | 'moon'
+  | 'play'
 
 const PATHS: Record<IconName, ReactNode> = {
   library: (
@@ -154,6 +155,7 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   moon: <path d="M15.5 4.8A7 7 0 1 0 19 14.2 5.4 5.4 0 0 1 15.5 4.8z" />,
+  play: <path d="M8 5.5v13l11-6.5-11-6.5z" fill="currentColor" stroke="none" />,
 }
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

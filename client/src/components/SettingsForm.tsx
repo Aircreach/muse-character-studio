@@ -78,6 +78,8 @@ const GROUPS: Array<{ title: string; note: string; fields: FieldDef[] }> = [
 /**
  * Structured settings editor — never a single big textbox.
  * Draft is persisted via useDraft so switching tabs never loses edits.
+ * The draft is cleared only after a successful save (onSave resolves);
+ * if saving fails the draft is kept so nothing has to be retyped.
  */
 export function SettingsForm({
   profileId,
@@ -89,7 +91,7 @@ export function SettingsForm({
   profileId: string
   initial: CharacterSettings
   settingsText: string
-  onSave: (patch: SettingsPatch) => void
+  onSave: (patch: SettingsPatch) => Promise<unknown>
   saving: boolean
 }) {
   const draft = useDraft<SettingsPatch>(`settings`, profileId, {})
@@ -182,8 +184,9 @@ export function SettingsForm({
           variant="primary"
           disabled={saving}
           onClick={() => {
-            onSave(draft.value)
-            draft.clear()
+            void onSave(draft.value)
+              .then(() => draft.clear())
+              .catch(() => undefined)
           }}
         >
           {saving ? '保存中…' : '保存设定'}

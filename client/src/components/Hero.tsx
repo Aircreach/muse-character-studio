@@ -1,10 +1,13 @@
 import type { CharacterProfile } from '../shared'
 import { Icon } from './icons'
-import { Badge, Button, MediaImage, StatusMark } from './ui'
+import { Badge, Button, StatusMark } from './ui'
+import { RuntimeMedia, sourceFromCoverUrl } from './RuntimeMedia'
 
 /**
  * Workspace inspector — image on top, actions under it.
  * Title wraps: never truncate `.active-profile-title` (390px fix).
+ * The cover renders through RuntimeMedia, so a video cover plays
+ * instead of showing a broken image.
  */
 export function Hero({
   profile,
@@ -21,14 +24,15 @@ export function Hero({
   onEditProfile: () => void
   activating: boolean
 }) {
+  const coverSource = sourceFromCoverUrl(coverUrl, `${profile.name} 主视觉`)
   return (
     <header className="panel inspector">
       <div className="media-portrait">
-        <MediaImage
-          src={coverUrl}
-          alt={`${profile.name} 主视觉`}
-          fallback={<div className="plate-void" />}
-        />
+        {coverSource ? (
+          <RuntimeMedia source={coverSource} emptyTitle="暂无封面" emptyNote="本地没有运行时原图，见系统页说明。" />
+        ) : (
+          <div className="plate-void" />
+        )}
         {isActive ? (
           <span className="media-badges">
             <Badge tone="good">当前激活</Badge>

@@ -4,7 +4,7 @@
 // validation. In particular:
 // - getStudio({}) -> { profiles, activeProfileId, capabilities }
 // - getProfileDetail({id}) -> ProfileDetail (see shared.ts)
-// - saveSettings: 线上形状是 { profileId, settings } 全量 32 字段
+// - saveSettings: 线上形状是 { profileId, settings } 全量 33 字段
 //   （各 ≤4000 字 + customFields ≤40 项，全量覆盖，返回整合文本）；
 //   本地前端发的是 { profileId, patch }，本地后端两种都接受。
 // - generateAsset: {profileId, stateKey, stateBrief ≤1000, extra ≤1000};
@@ -38,7 +38,7 @@ export interface ActionFn<I, O> {
 export type Actions = {
   seedStudio: ActionFn<Record<string, never>, { seeded: boolean; profileIds: string[] }>
   getStudio: ActionFn<Record<string, never>, import('./shared').StudioOverview>
-  getCapabilities: ActionFn<Record<string, never>, import('./shared').Capabilities>
+  getCapabilities: ActionFn<Record<string, never>, { capabilities: import('./shared').Capabilities }>
   getProfileDetail: ActionFn<{ id: string }, import('./shared').ProfileDetail>
   createProfile: ActionFn<
     { name: string; subtitle?: string; description?: string; tags?: string[] },
@@ -58,7 +58,7 @@ export type Actions = {
     { settings: import('./shared').CharacterSettings; settingsText: string }
   >
   uploadAsset: ActionFn<
-    { profileId: string; stateKey?: string | null; file: File; note?: string },
+    { profileId: string; stateKey?: string | null; file: File; note?: string; select?: boolean },
     { asset: import('./shared').Asset }
   >
   selectStateAsset: ActionFn<
@@ -115,11 +115,8 @@ export type Actions = {
   importRuntimeBase: ActionFn<{ profileId: string }, { asset: import('./shared').Asset; alreadyPresent: boolean }>
   /** [LOCAL ALIAS] 线上不发布：由 getProfileDetail 派生的只读查询。 */
   listActivations: ActionFn<{ profileId: string }, { activations: import('./shared').ActivationRecord[] }>
-  /** [LOCAL ALIAS] 线上不发布：本地无法访问 Muse 运行时，返回带 warning 的空结果。 */
-  getRuntimeAssets: ActionFn<
-    Record<string, never>,
-    { baseImageUrl: string | null; baseSha256: string | null; stateFrames: Record<string, string>; warning?: string }
-  >
+  /** [LOCAL ALIAS] 线上不发布：server/data/runtime-media/ 有真实媒体时返回真实清单，没有时返回 warning 空结果。 */
+  getRuntimeAssets: ActionFn<Record<string, never>, import('./shared').RuntimeAssetsResult>
   /** [LOCAL ALIAS] 线上不发布：本地校验素材文件与 SHA-256。 */
   verifyAssetIntegrity: ActionFn<{ profileId: string }, { checked: number; mismatched: string[] }>
   /** [LOCAL ALIAS] 线上不发布：本地无法访问 Muse 运行时，调用会明确报错。 */

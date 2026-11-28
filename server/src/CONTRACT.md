@@ -19,7 +19,7 @@
 - shared_base：independentStateAssets=false，candidateIdReusable=false，
   仅 base 槽位 configurable，10 条 state_definitions，完成度分母只计
   configurable 槽位（x/1）。
-- saveSettings 32 字段各 ≤4000 字 + customFields ≤40 项，全量覆盖；
+- saveSettings 33 字段各 ≤4000 字 + customFields ≤40 项，全量覆盖；
   generateAsset 入参 stateBrief ≤1000、extra ≤1000，产物 status=candidate，
   须 adoptCandidate 才进画廊；uploadAsset 仅 png/jpeg/webp/gif/mp4/webm，算 SHA-256。
 

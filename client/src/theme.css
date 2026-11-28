@@ -751,6 +751,20 @@ html.dark {
   html:not(.dark) .wall-card { border-color: var(--color-line); background: var(--color-surface); }
   .gallery-card { border-radius: 2px; }
   .wall-card[data-active="true"] { border-color: var(--color-flame); }
+  /* 已归档卡：媒体去色变暗，与正常卡一眼区分（另有“已归档”角标 + 恢复按钮）。 */
+  .wall-card[data-archived="true"] .media-img,
+  .wall-card[data-archived="true"] .media-video { filter: saturate(0.3) brightness(0.8); }
+  .btn.restore-btn {
+    position: absolute;
+    z-index: 2;
+    top: 74px;
+    right: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    background: rgb(0 0 0 / 0.55);
+    color: #f7f8fb;
+    border-color: transparent;
+  }
   .wall-card-hit {
     display: block;
     width: 100%;
@@ -785,6 +799,20 @@ html.dark {
     object-fit: cover;
     display: block;
   }
+  /* RuntimeMedia 的视频与图片共用同一套绝对填充定位（见 .media-img）。 */
+  .media-43 > .media-video,
+  .media-11 > .media-video,
+  .media-portrait > .media-video,
+  .media-poster > .media-video,
+  .media-hit .media-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #000;
+  }
   .media-poster .media-img,
   .media-portrait .media-img {
     transition: transform 480ms var(--ease-out);
@@ -804,6 +832,41 @@ html.dark {
     inset: 0;
     background: #08090c;
   }
+  /* 无媒体占位：居中图标 + 标题 + 说明，绝不是一块黑——调用方必须写清为什么没有。 */
+  .media-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    text-align: center;
+    color: var(--color-ink-2);
+  }
+  .media-empty .card-title { color: var(--color-ink); }
+  .media-empty-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-ink-3);
+    max-width: 260px;
+  }
+  /* 媒体类型/来源徽标（RuntimeMedia）：右上角，与左上角 .media-badges 不冲突。 */
+  .media-kind {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 8px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.55);
+    color: #f7f8fb;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  /* 角色库卡片右上角是收藏星标，徽标下移一格避开。 */
+  .wall-card .media-kind { top: 40px; right: 6px; }
   .plate-void-name {
     position: absolute;
     left: 16px;
@@ -923,6 +986,7 @@ html.dark {
   }
   .thumb[aria-pressed="true"] { border-color: var(--color-accent); opacity: 1; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
   .ref-cap {
     display: flex;
     align-items: center;
@@ -936,6 +1000,14 @@ html.dark {
     max-height: 70vh;
     object-fit: contain;
     background: var(--color-bg);
+    border-radius: var(--radius-control);
+  }
+  .preview-video {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    background: #000;
     border-radius: var(--radius-control);
   }
   .file-input { display: none; }

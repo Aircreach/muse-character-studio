@@ -54,6 +54,7 @@ react-query 5.108.4、zod 4.6.7、TypeScript 5.9.3、Vite 7.3.8。
 │   │   ├── ProfileCard.tsx       # 角色库卡片：封面优先
 │   │   ├── Hero.tsx              # 工作台主视觉
 │   │   ├── GalleryCard.tsx       # 状态画廊卡片：图片主体
+│   │   ├── RuntimeMedia.tsx      # 全站唯一媒体展示组件：按类型播视频/显示图片、带类型来源徽标、无媒体时带说明占位
 │   │   ├── SettingsForm.tsx      # 7 组结构化设定编辑器 + 整合预览
 │   │   ├── GeneratePanel.tsx     # 生成中心：候选与正式素材分离
 │   │   ├── PreviewDialog.tsx     # 高清预览
@@ -179,7 +180,7 @@ getRuntimeAssets、verifyAssetIntegrity、clearAvatar。
 > 后端还原时已按线上真实动作修正，差异见 `server/BACKEND.md`。
 
 关键契约不变：
-- `saveSettings`：32 个 ≤4000 字字段 + customFields ≤40 项，全量覆盖，返回整合文本。
+- `saveSettings`：33 个 ≤4000 字字段 + customFields ≤40 项，全量覆盖，返回整合文本。
 - `generateAsset`：`{profileId, stateKey, stateBrief≤1000, extra≤1000}`。
 - `activateProfile`：校验未归档且 base 槽位已有选中素材；写 activations
  （`providerStatus='local_record'`，快照含 `mode:'shared_base' / baseAssetId /
@@ -197,6 +198,12 @@ getRuntimeAssets、verifyAssetIntegrity、clearAvatar。
 内置 `base.webp` 即已恢复的 v1 原图，1600×1600，MD5
 `2fb6bdc0c46ff85bdc77bc6285d26d9d`，长黑发、右眼蓝色火焰、白衬衫、黑外套（蓝线）、
 黑裙、过膝袜、黑靴。本地验证用的同一文件在 `~/workspace/reverse-test/v1-exact.webp`。
+
+画廊的真实运行时媒体（视频/静态帧）另放在 `server/data/runtime-media/`（不提交）：
+`getRuntimeAssets` 有文件时返回真实清单（每项 `{ stateKey, kind: 'video'|'image', url, posterUrl, darkUrl, label }`，
+经 `GET /assets/runtime-media/…` 播放），没有时返回空 + warning、不编造。
+命名约定见 `server/src/muse.ts` 与 `server/BACKEND.md`；当前头像的真实文件
+（7 个状态的 MP4、5 张静态帧、深色版）已从 `~/workspace/avatars/` 复制到该目录。
 
 ## 八、自查结果（实跑，非声称）
 
@@ -274,7 +281,7 @@ SQLite，跑法见第二节（`bun run dev:full`）。
 | 功能 | 本地表现 |
 | --- | --- |
 | 生成图片（generateAsset） | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败任务会记一条 error 记录 |
-| 读取 Muse 运行时形象（getRuntimeAssets） | 返回空结果 + warning，不编造运行时帧 |
+| 读取 Muse 运行时形象（getRuntimeAssets） | `server/data/runtime-media/` 有真实媒体时返回真实清单（视频/帧/深色版）；没有时返回空结果 + warning，不编造运行时帧 |
 | 清除 Muse 头像（clearAvatar） | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 |
 | 一键导入运行时原图（importRuntimeBase） | 本地没有 base.webp 时报错；把原图放到 `server/data/runtime-base.webp` 后可导入，MD5 会核对 |
 

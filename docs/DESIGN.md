@@ -174,22 +174,23 @@ SQLite（server/data/studio.db，WAL 模式）
 
 - **干嘛的**：静态展示页，三块内容：Muse 能力矩阵、Muse 当前运行时形象、存储与完整性说明。
 - **包含文件**：只有 `App.tsx` 内的 `SystemView`，没有单独文件。
-- **对外提供**：无动作调用。能力矩阵用的是前端写死的 `AUDITED_CAPABILITIES`
-  （`shared.ts`），不是调 `getCapabilities` 拿的；`getStudio` 返回的能力矩阵前端也没用上。
-  运行时形象区固定展示 `/assets/runtime/base.webp` 与 MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`、
+- **对外提供**：调 `getCapabilities` 取实时能力矩阵；取不到时回退到
+  `getStudio` 带回的能力矩阵，再取不到才用前端写死的 `AUDITED_CAPABILITIES`
+  （`shared.ts`），并在页面上标注来源。运行时形象区固定展示
+  `/assets/runtime/base.webp` 与 MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`、
   1600×1600、164690 字节。
-- **注意**：页面上“保存时算 SHA-256、生成缩略图、原子 rename”这句与本地后端不符——
-  本地后端不生成缩略图（`thumbnailPath` 恒为 null），见附录 A.5。
+- **注意**：本地后端不生成缩略图（`thumbnailPath` 恒为 null，见附录 A.5），
+  系统页也不再写“生成缩略图”（4c86cd0 改版时该句已去掉）。
 
 #### 3.2.3 角色工作台（`client/src/Workspace.tsx`）
 
 - **干嘛的**：一张卡的全部操作面。顶部 Hero（主视觉 + 激活/编辑资料），下方四 Tab：
   状态画廊、角色设定、生成中心、参考素材；底部是技术信息折叠区与归档/删除按钮。
 - **包含文件**：`Workspace.tsx`（Tab 切换、全部 mutation、上传 input、确认框状态）、
-  `components/Hero.tsx`、`components/GalleryCard.tsx`、`components/SettingsForm.tsx`、
-  `components/GeneratePanel.tsx`、`components/PreviewDialog.tsx`、`components/ConfirmDialog.tsx`。
-- **对外提供**：`getProfileDetail` 取单卡全量；`saveSettings`、`activateProfile`、
-  `generateAsset`、`adoptCandidate`、`discardCandidate`、`uploadAsset`、
+  `components/Hero.tsx`、`components/GalleryCard.tsx`、`components/RuntimeMedia.tsx`、
+  `components/SettingsForm.tsx`、`components/GeneratePanel.tsx`、`components/PreviewDialog.tsx`、`components/ConfirmDialog.tsx`。
+- **对外提供**：`getProfileDetail` 取单卡全量；`getRuntimeAssets` 取真实运行时媒体清单；
+  `saveSettings`、`activateProfile`、`generateAsset`、`adoptCandidate`、`discardCandidate`、`uploadAsset`、
   `selectAsset`（别名）、`deleteAsset`、`archiveProfile`、`deleteProfile`。
 - **依赖谁**：`api.ts`、`useDraft`（设定与生成简述的草稿）、`shared.ts` 的类型。
 - **细节**：
@@ -202,6 +203,11 @@ SQLite（server/data/studio.db，WAL 模式）
     也就是说**从参考素材 Tab 点“上传素材”，文件实际是链到 base 槽位**，不是直接变成参考素材；
     要进参考素材列表必须经 `setReference` 标记，而前端目前没有入口调 `setReference`。
   - 归档与删除都走 `ConfirmDialog`；删除卡前须先解除激活（后端也会拦）。
+  - 画廊运行时状态取 `getRuntimeAssets` 的真实清单（视频播、帧显示），
+    没有真实媒体时显示“暂无运行时画面”占位，不用基础图冒充各状态帧（见附录 A.7）。
+    base 卡“替换”按钮是真实行为：上传一个新文件并用 `uploadAsset select=true`
+    把它选为当前素材（见附录 A.2）。
+  - 参考素材与画廊的删除确认框写明删除是永久操作，没有回收站（见附录 A.3）。
 
 #### 3.2.4 组件库（`client/src/components/ui.tsx` 等）
 
@@ -215,16 +221,24 @@ SQLite（server/data/studio.db，WAL 模式）
 - `ProfileCard.tsx`：封面优先（`aspect-[4/3]`），无封面时用 `/assets/runtime/base.webp`
   作回退封面，**不渲染单字占位**；显示名称、副标题、简介（截断 2 行）、状态进度
   （`configured/total` + 百分比 + 进度条）、收藏星标（点按会 `stopPropagation`，
-  不触发进工作台）、最多 3 个标签；“当前激活”角标。
+  不触发进工作台）、最多 3 个标签；“当前激活”角标。封面经 `RuntimeMedia` 渲染，
+  视频封面会播；已归档的卡去色变暗、带“已归档”角标与“恢复”按钮（调 `restoreProfile`，见附录 A.6）。
 - `Hero.tsx`：左主视觉（`md` 断点起 320px 列）+ 右名称/副标题/简介/标签/激活/编辑资料；
   标题用 `.active-profile-title`，永不截断；已激活时按钮变 outline 且禁用，文案“已激活”；
   底部固定说明激活只写本地记录。
 - `GalleryCard.tsx`：单状态卡片，图片主体 `aspect-[4/3]`；base 槽位显示选定素材，
-  多于 1 张候选时下方出现 56px 缩略图条可切换选中；非 base 槽位显示 Muse 运行时帧，
-  标“自动驱动 · Muse 运行时，只读”；未配置时 base 显示“尚未配置基础形象”，
-  非 base 显示“Muse 自动驱动”；点“对比本地素材”才展开双图对照（本地素材 vs Muse 运行时）。
-  注意：base 卡上的“替换”按钮目前是空操作（`Workspace` 传的是 `onCompare={() => undefined}`，
-  见附录 A.2）；真正的替换做法是点“上传”/“生成”新增素材，再点缩略图条切换选中。
+  多于 1 张候选时下方出现 56px 缩略图条可切换选中（视频素材的缩略图播首帧）；
+  非 base 槽位显示 Muse 真实运行时媒体（有视频播视频、有帧显示帧），
+  标“自动驱动 · Muse 运行时，只读”，每张媒体右上角有类型/来源徽标
+  （“视频 · Muse 运行时”/“静态帧 · Muse 运行时”）；没有真实媒体时显示
+  带图标与说明的占位（“暂无运行时画面”或“非独立槽位”），不用基础图冒充；
+  未配置时 base 显示“尚未配置基础形象”；点“对比本地素材”才展开双图对照
+  （本地素材 vs Muse 运行时）。base 卡上的“替换”按钮是真实行为：
+  上传新文件并把它选为当前素材（`uploadAsset select=true`，见附录 A.2）。
+- `RuntimeMedia.tsx`：全站唯一的媒体展示组件，内部按扩展名/mime 判断类型：
+  视频用 `<video autoplay loop muted playsInline>`（有 poster，没有就用基础图），
+  图片用 `<img>`；深色界面有 `darkUrl` 时用深色版，没有就回退浅色；加载失败
+  时回退 poster、再失败显示占位。画廊、Hero、角色库封面、参考素材、预览都走它。
 
 #### 3.2.5 设定编辑器（`client/src/components/SettingsForm.tsx`）
 
@@ -251,8 +265,9 @@ SQLite（server/data/studio.db，WAL 模式）
   没保存就看预览，看到的是旧文本。
 - **草稿**：表单值走 `useDraft('settings', profileId, {})`，只存改动过的字段（patch），
   与服务端初始值合并显示。保存按钮点按时把 patch 发给 `saveSettings`，
-  并**在点按当时就清除草稿**（不是等服务端返回成功后才清，见附录 A.4）；
-  保存失败时草稿已清、改动需要重填——这是已知行为，不是“保存成功后才清”。
+  **只在服务端返回成功后才清除草稿**（`mutateAsync` resolve 后 `draft.clear()`）；
+  保存失败时草稿保留、改动不用重填（见附录 A.4）。生成中心的简述草稿同理，
+  只在生成请求成功发出后才清。
 
 #### 3.2.6 生成中心（`client/src/components/GeneratePanel.tsx`）
 
@@ -478,7 +493,7 @@ SQLite（server/data/studio.db，WAL 模式）
 | 查看设定 `[REAL]` `getProfileDetail` | 进工作台自动调 → `{ id }` → `ProfileDetail` 全量 → 设定为空时设定 Tab 显示“暂无设定，请先保存一次设定” |
 | 保存设定 `[REAL]` `saveSettings` | 设定编辑器底部“保存设定” → 前端发 `{ profileId, patch }`（只含改过的字段），线上形状是 `{ profileId, settings }` 全量，后端两种都接受 → `{ settings, settingsText }` → **全量覆盖**：patch 会与现有设定合并后整体写回；每字段 ≤4000 字、`customFields` ≤40 项（`key` 1–60 字、`value` ≤4000 字）；成功 toast“设定已保存”，失败 toast“保存失败：…”；保存不触发任何生成 |
 | 整合预览 | 设定编辑器“查看整合预览” → 读服务端返回的 `settingsText`（只读 Modal） → 显示的是**上次保存后**的文本，不是当前草稿；没保存过显示“暂无整合文本，先保存一次设定。” |
-| 草稿持久化 | 编辑任意字段自动写 localStorage（键 `mcs-draft:settings:<profileId>`）→ 切 Tab、切卡、刷新页面都恢复；点“保存设定”当时清除草稿（见附录 A.4） |
+| 草稿持久化 | 编辑任意字段自动写 localStorage（键 `mcs-draft:settings:<profileId>`）→ 切 Tab、切卡、刷新页面都恢复；只在保存成功后清除草稿，保存失败时保留（见附录 A.4） |
 | 只读查询设定文本 `[ALIAS]` `getSettingsText` | 无界面入口 → `{ profileId }` → `{ settingsText }`，由 `getProfileDetail` 派生 |
 
 ### 4.3 状态画廊与素材
@@ -490,12 +505,12 @@ SQLite（server/data/studio.db，WAL 模式）
 | 选定槽位素材 `[REAL]` `selectStateAsset` | base 卡缩略图条点某张 → `{ profileId, stateKey, assetId }` → `{ slot }` → 每槽唯一选中，选新即取消旧选中；素材未链入该槽时自动链入；候选（`status='candidate'`）不可选，须先采纳 |
 | 链入素材 `[REAL]` `linkAssetToState` | 无界面入口 → `{ profileId, stateKey, assetId }` → `{ slot }` → 只链入不改变选中；同一 `(profileId, stateKey, assetId)` 唯一，重复链入不报错 |
 | 移除链入 `[REAL]` `unlinkStateAsset` | 无界面入口 → `{ linkId }`（链接 id，不是素材 id） → `{ deleted:true, slot }` → 只移除链接，素材本身留在库里；删掉的是选中链接时该槽变为未选 |
-| 删除素材 `[REAL]` `deleteAsset` | 参考素材卡“删除”→ 确认框 → `{ assetId }`（前端多传 `profileId`，后端接受并校验归属） → `{ deleted:true }` → **正被任一槽位选中的素材禁止删除**；删除会删文件、全部槽位链接与参考标记；复制卡共享的素材（行属原卡）拥有者或链入者都可删，删的是文件与全部链接。确认框文案称“删除后可在回收站恢复（30 天）”是错的——本地没有回收站，见附录 A.3 |
+| 删除素材 `[REAL]` `deleteAsset` | 参考素材卡“删除”→ 确认框 → `{ assetId }`（前端多传 `profileId`，后端接受并校验归属） → `{ deleted:true }` → **正被任一槽位选中的素材禁止删除**；删除会删文件、全部槽位链接与参考标记；复制卡共享的素材（行属原卡）拥有者或链入者都可删，删的是文件与全部链接。确认框写明删除是永久操作，无法恢复（见附录 A.3） |
 | 设封面 `[REAL]` `setCover` | 无界面入口 → `{ profileId, assetId \| null }` → `{ profile }` → 封面只影响角色库卡片与 Hero 的展示图，**不是 Muse 头像**；传 `null` 清除封面（回退到运行时原图） |
 | 设参考 `[REAL]` `setReference` | 无界面入口 → `{ profileId, assetId, kind: 'appearance' \| 'style' }` → `{ reference }` → 同一卡、同一素材、同一 kind 重复标记时返回已有记录，不重复建 |
 | 取消参考 `[REAL]` `removeReference` | 无界面入口 → `{ id }`（参考记录 id） → `{ deleted:true }` → 只移除标记，素材不动 |
-| 高清预览 | 点任意图片卡 → 打开 `PreviewDialog`（`object-contain`，最大高度 70vh）→ 只读，不改数据 |
-| 双图对照 | 非 base 卡点“对比本地素材” → 展开本地素材 vs Muse 运行时双图 → 仅在用户点按时出现；平时不并排展示。注意：前端的“运行时帧”目前五张都用同一张 `/assets/runtime/base.webp`（见附录 A.7），不是五张不同的帧 |
+| 高清预览 | 点任意媒体卡 → 打开 `PreviewDialog`（图片 `object-contain`，视频带控制条播放，最大高度 70vh）→ 只读，不改数据 |
+| 双图对照 | 非 base 卡点“对比本地素材” → 展开本地素材 vs Muse 运行时双图 → 仅在用户点按时出现；平时不并排展示。两边都经 `RuntimeMedia` 渲染（视频会播）；运行时一边没有真实媒体时显示占位，不用基础图冒充（见附录 A.7） |
 | 校验素材完整性 `[ALIAS]` `verifyAssetIntegrity` | 无界面入口 → `{ profileId }` → `{ checked, mismatched: string[] }` → 逐个素材核对文件存在与 SHA-256，文件缺失或哈希不符的 id 列入 `mismatched` |
 
 ### 4.4 生成与候选
@@ -854,8 +869,8 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 3. 点“查看整合预览” → 读服务端上次保存后生成的 `settingsText`（只读 Modal），
    不是当前草稿的实时预览。
 4. 点“保存设定” → 发 `{ profileId, patch }` 给 `saveSettings`，后端合并后全量写回，
-   返回 `{ settings, settingsText }`；前端 toast“设定已保存”，并在点按当时清除草稿。
-   失败时 toast“保存失败：…”（草稿已被清掉，见附录 A.4）。
+   返回 `{ settings, settingsText }`；前端 toast“设定已保存”，并只在保存成功后清除草稿。
+   失败时 toast“保存失败：…”（草稿保留，见附录 A.4）。
 5. 自定义字段：点“+ 增加自定义字段”（上限 40 项），每项填字段名与内容，可逐项删除；
    与 33 个固定字段一起随 patch 保存。
 
@@ -991,11 +1006,12 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `client/src/api.ts` | 动作类型契约 + `POST ./actions` 的 fetch 封装 + File→base64 传输转换；9 个 `[LOCAL ALIAS]` 别名在此标注 |
 | `client/src/shared.ts` | 前后端共用的领域类型、能力常量、运行时原图常量（MD5、字节数、尺寸） |
 | `client/src/theme.css` | 全部设计 token：颜色、字体、圆角、阴影、按钮、徽标、暗色模式、390px 标题修复 |
-| `client/src/hooks/useDraft.ts` | 草稿持久化 hook（`useDraft` 与未被调用的 `useDebouncedDraft`） |
+| `client/src/hooks/useDraft.ts` | 草稿持久化 hook（`useDraft`） |
 | `client/src/components/ui.tsx` | 基础组件：Button、StatusMark、Badge、EmptyState、Modal（Radix Dialog） |
-| `client/src/components/ProfileCard.tsx` | 角色库卡片：封面优先、进度条、收藏星标 |
+| `client/src/components/ProfileCard.tsx` | 角色库卡片：封面优先、进度条、收藏星标、已归档标识与恢复按钮 |
 | `client/src/components/Hero.tsx` | 工作台主视觉：封面、名称、简介、激活/编辑资料按钮 |
-| `client/src/components/GalleryCard.tsx` | 单状态画廊卡：图片主体、可配置/自动驱动、双图对照 |
+| `client/src/components/GalleryCard.tsx` | 单状态画廊卡：图片主体、可配置/自动驱动、双图对照、替换按钮 |
+| `client/src/components/RuntimeMedia.tsx` | 全站唯一媒体展示组件：按类型播视频/显示图片、类型来源徽标、无媒体占位 |
 | `client/src/components/SettingsForm.tsx` | 7 组结构化设定编辑器 + 自定义字段 + 整合预览 |
 | `client/src/components/GeneratePanel.tsx` | 生成表单与候选列表（采纳/丢弃） |
 | `client/src/components/PreviewDialog.tsx` | 高清预览对话框（`object-contain`，最大高度 70vh） |
@@ -1010,7 +1026,7 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 | `server/src/actions.ts` | 30 个真实动作 + 9 个本地别名 + 分发表 + 全部守则（1155 行） |
 | `server/src/http.ts` | Bun 服务入口：8787，`GET /health`、`POST /actions`、`GET /assets/` |
 | `server/src/muse.ts` | Muse 依赖隔离层：四项功能的报错 / warning / 本地原图查找 |
-| `server/data/`（不提交） | 本地运行时数据：`studio.db`（SQLite）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件）、可选的 `runtime-base.webp`（手动放置的原图）；删掉整个目录即重置回首开状态 |
+| `server/data/`（不提交） | 本地运行时数据：`studio.db`（SQLite）、`studio.db-wal` / `-shm`、`assets/<profileId>/`（素材文件）、可选的 `runtime-base.webp`（手动放置的原图）、`runtime-media/`（真实运行时媒体，视频/静态帧/深色版，供 `getRuntimeAssets` 用）；删掉整个目录即重置回首开状态 |
 | `node_modules/`（不提交） | 依赖安装目录，`bun install` 生成 |
 | `dist/`（不提交） | `vite build` 产物，用完即删，不提交 |
 
@@ -1049,7 +1065,8 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 - [ ] 响应式：1280px 桌面、768px 平板、390px 手机下标题不截断、无横向溢出、无控制台报错。
 - [ ] 上传/导入：B 卡上传小图能进素材库；系统页“导入为基础形象”按 MD5 核对。
 - [ ] 本地后端：`bun run dev:full` 启动后角色库加载出 A/B 两张卡；`GET /health` 返回 ok；
-  `generateAsset` 明确报 `[MUSE_DEPENDENT]`；`getRuntimeAssets` 返回 warning 空结果。
+  `generateAsset` 明确报 `[MUSE_DEPENDENT]`；`getRuntimeAssets` 在 `server/data/runtime-media/`
+  为空时返回 warning 空结果，有真实媒体时返回真实清单。
 
 ### 10.3 已知未验证项（写文档时就知道没验过，不要当成已完成）
 
@@ -1071,32 +1088,58 @@ assets.status = 'asset' | 'candidate'          候选也是 assets 表的一行
 
 > 这些不是本文档的笔误，是通读源码后发现的、旧文档（`README.md` / `server/BACKEND.md` /
 > 代码注释）与代码实际行为不符的地方。列在这里，供后续修代码或修文档时逐项处理；
-> 本文档正文一律以代码为准。
+> 本文档正文一律以代码为准。**已修复的项标注了提交**，未修复的项写明了原因。
 
 - **A.1 设定字段数是 33 个，不是 32 个。** `server/src/schema.ts` 的 `SETTINGS_FIELDS`
   实际有 33 项（见第 3.2.5 节的完整清单）；`README.md`、`server/BACKEND.md`、
   `client/src/api.ts` 注释里写的“32 个字段”与代码不符。本文档写 33 个。
+  【已修复：`README.md`、`server/BACKEND.md`、`server/src/CONTRACT.md`、
+  `client/src/api.ts` 里的“32 个字段”已全部改为 33 个，提交见下文。】
 - **A.2 base 卡的“替换”按钮目前是空操作。** `GalleryCard` 的“替换”按钮调
   `Workspace` 传的 `onCompare={() => undefined}`；真正的替换做法是上传/生成新素材后
   点缩略图条切换选中。
+  【已修复：`onCompare` 已删掉；“替换”按钮改为真实行为——打开上传，选文件后
+  以 `uploadAsset select=true` 上传并立即把新文件选为基础形象；非 base 卡的
+  “对比本地素材”按钮只做本地展开/收起，不再调空操作。提交见下文。】
 - **A.3 没有回收站。** 参考素材删除确认框写“删除后可在回收站恢复（30 天）”，
   但 `deleteAsset` 是永久删除（删文件、删链接、删参考标记），代码里没有任何回收站逻辑。
+  【已修复：确认框改为“删除是永久操作：文件、全部槽位链接与参考标记都会被删除，
+  无法恢复。”提交见下文。】
 - **A.4 草稿在点保存当时就清掉，不是“保存成功后才清”。** `SettingsForm` 是
   `onSave(draft.value); draft.clear()`（同步执行），`GeneratePanel` 点“开始生成”时也
   立即 `brief.clear()`；保存失败时草稿已清。`README.md` 第六节“只在保存成功后清除”
   与代码不符。
+  【已修复：`SettingsForm` 与 `GeneratePanel` 的保存/生成回调改为返回 Promise，
+  只在 `mutateAsync` 成功后才清草稿；失败时草稿保留。提交见下文。】
 - **A.5 系统页“生成缩略图”与本地不符。** `App.tsx` 的 `SystemView` 写“保存时算
   SHA-256、生成缩略图、原子 rename”，但本地后端不生成缩略图（`thumbnailPath` 恒为 null）。
+  【部分修复：4c86cd0 改版时系统页那句已去掉，当前系统页不再写“生成缩略图”；
+  `thumbnailPath` 仍恒为 null——本地没有缩略图管线，这是设计现状，不是 bug，
+  前端用原图 URL 预览。】
 - **A.6 已归档的卡仍会出现在角色库。** 后端 `getStudio` 与前端列表都没有过滤
   `archivedAt`；`restoreProfile` 存在但前端无入口。
+  【已修复：已归档卡在角色库里去色变暗、带“已归档”角标，并有“恢复”按钮
+  （调 `restoreProfile`）；列表仍不过滤归档卡（与后端行为一致），但一眼可区分。提交见下文。】
 - **A.7 五个运行时状态共用同一张占位图。** `Workspace.tsx` 的 `runtimeFrames`
   把 idle、waking、working、making_something、milestone_level_up 五个状态
   都指向 `/assets/runtime/base.webp`；画廊里看到的“运行时帧”目前是同一张 base 图，
   不是五个不同的帧。本地 `getRuntimeAssets` 返回空结果与此一致，不要误读为“五个帧都有”。
+  【已修复：`runtimeFrames` 硬编码已删掉；`getRuntimeAssets` 改为返回
+  `server/data/runtime-media/` 里的真实清单（每状态自己的视频/帧/深色版），
+  画廊经 `RuntimeMedia` 播放真实媒体；没有真实媒体时显示“暂无运行时画面”占位，
+  不用基础图冒充。提交见下文。线上部署时构建器须在适配层实现 `getRuntimeAssets`
+  并返回内置媒体，见 `server/BACKEND.md`。】
 - **A.8 `galleryId` 恒为 null。** 没有独立的 gallery 表，`profileRowToDomain`
   写死 `galleryId: null`；工作台技术信息里显示 `—`。
+  【未修复（设计现状）：没有独立的 gallery 表是数据模型的有意选择——槽位由
+  `state_links` 派生，不需要 gallery 实体；`galleryId` 字段保留作兼容，不硬改模型。】
 - **A.9 `useDebouncedDraft` 没有任何调用方。** 导出在 `hooks/useDraft.ts` 里，
   全仓库无人调用，是预留代码。
+  【已修复：该函数已删除。提交见下文。】
 - **A.10 系统页不用 `getCapabilities`。** `SystemView` 展示的是前端写死的
   `AUDITED_CAPABILITIES`，`getStudio` 返回的能力矩阵前端也没用上；
   两份常量目前一致，但改一处时另一处不会自动跟着变。
+  【已修复：系统页优先调 `getCapabilities` 取实时值；取不到时回退到
+  `getStudio` 带回的能力矩阵，再取不到才用写死值，并标注来源。提交见下文。
+  另：`api.ts` 里 `getCapabilities` 的返回类型之前写错成 `Capabilities`，
+  实际服务端返回 `{ capabilities }`，已一并修正。】

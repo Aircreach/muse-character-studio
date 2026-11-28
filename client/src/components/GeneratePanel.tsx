@@ -6,7 +6,8 @@ import { Badge, Button, EmptyState, Field, Panel, SelectInput, TextArea } from '
 
 /**
  * Generation centre — candidates stay separate from gallery assets
- * until the user adopts one. The brief draft survives tab switches.
+ * until the user adopts one. The brief draft survives tab switches,
+ * and is cleared only after a generate request succeeds.
  */
 export function GeneratePanel({
   profileId,
@@ -20,7 +21,7 @@ export function GeneratePanel({
   profileId: string
   stateDefs: Array<{ stateKey: string; name: string }>
   candidates: GenerationCandidate[]
-  onGenerate: (stateKey: string, stateBrief: string, extra: string) => void
+  onGenerate: (stateKey: string, stateBrief: string, extra: string) => Promise<unknown>
   onAdopt: (candidateId: string, stateKey: string) => void
   onDiscard: (candidateId: string) => void
   generating: boolean
@@ -65,8 +66,10 @@ export function GeneratePanel({
               variant="primary"
               disabled={generating}
               onClick={() => {
-                onGenerate(stateKey, brief.value.stateBrief, brief.value.extra)
-                brief.clear()
+                // 生成简述草稿只在生成成功发出后才清；失败时保留，改完可直接重试。
+                void onGenerate(stateKey, brief.value.stateBrief, brief.value.extra)
+                  .then(() => brief.clear())
+                  .catch(() => undefined)
               }}
             >
               <Icon name="spark" />

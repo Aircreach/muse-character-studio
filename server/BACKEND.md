@@ -20,7 +20,7 @@
 | restoreProfile | `{ id }` | 取消归档 |
 | deleteProfile | `{ id }` | 激活中禁止；删设定、画廊、素材（含文件）、任务、激活记录 |
 | toggleFavorite | `{ id }` | 收藏取反 |
-| saveSettings | `{ profileId, settings }` 全量 32 字段（各 ≤4000）+ customFields ≤40 | 全量覆盖，返回整合文本；本地前端发 `{ profileId, patch }`，后端也接受并合并 |
+| saveSettings | `{ profileId, settings }` 全量 33 字段（各 ≤4000）+ customFields ≤40 | 全量覆盖，返回整合文本；本地前端发 `{ profileId, patch }`，后端也接受并合并 |
 | uploadAsset | `{ profileId, dataBase64≤28MB, mimeType, note≤500?, select?, source?, stateKey? }` | 仅 png/jpeg/webp/gif/mp4/webm；算 SHA-256；存 `server/data/assets/` |
 | selectStateAsset | `{ profileId, stateKey, assetId }` | 选定某槽位的素材（每槽唯一）；未链入时自动链入 |
 | linkAssetToState | `{ profileId, stateKey, assetId }` | 链入素材不改变选中 |
@@ -54,7 +54,7 @@
 | 功能 | 本地表现 | 为什么 | 替代做法 |
 | --- | --- | --- | --- |
 | 生成图片 generateAsset | 报错 `[MUSE_DEPENDENT]`，不产生假图；失败会记一条 status=error 的任务，可在生成中心看到 | 需要 Muse 的 generate_media，本地调不到 | 在线上工作室生成候选；或用 uploadAsset 上传真实图片 |
-| 读取 Muse 运行时形象 getRuntimeAssets | 返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, warning }`，不编造运行时帧 | 本地够不到 Muse 运行时 | 看线上工作室 getCapabilities 的 runtimeAvatar（MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`） |
+| 读取 Muse 运行时形象 getRuntimeAssets | `server/data/runtime-media/` 有真实媒体时返回真实清单 `{ baseImageUrl, baseSha256, stateFrames, items[] }`（每项 `{ stateKey, kind: 'video'\|'image', url, posterUrl, darkUrl, label }`）；没有时返回 `{ baseImageUrl: null, baseSha256: null, stateFrames: {}, items: [], warning }`，不编造运行时帧 | 本地够不到 Muse 运行时，媒体文件由用户亲手放入该目录 | 看线上工作室 getCapabilities 的 runtimeAvatar（MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；或把 `~/workspace/avatars/` 里的真实视频/帧按命名约定复制到 `server/data/runtime-media/` |
 | 清除 Muse 头像 clearAvatar | 报错 `[MUSE_DEPENDENT]`，本地资产不受影响 | 需要访问 Muse 运行时头像 | 在 Muse 本人处清除头像 |
 | 一键导入运行时原图 importRuntimeBase | 本地没有 base.webp 时报错 `[MUSE_DEPENDENT]`，并提示已知副本位置 | 本地仓库不存 164690 字节大图 | 把原图复制到 `server/data/runtime-base.webp` 后重试；或在线上工作室用系统页导入。已验证：放图后导入成功，1600×1600、SHA-256 与原文件一致，第二次调用返回同一素材（alreadyPresent） |
 
@@ -63,6 +63,36 @@
 - 本地后端不生成缩略图（线上会生成）：上传素材的 `thumbnailPath` 为 null，
   前端用原图 URL 预览。
 - 图片宽高：PNG/GIF/WebP 尽量解析，解析不到时为 null，不阻塞上传。
+
+### 运行时媒体目录 `server/data/runtime-media/`（getRuntimeAssets 的真实来源）
+
+命名约定（`state` 取自状态定义，另加 `base`；`-dark` 为深色版）：
+
+| 文件 | 含义 |
+| --- | --- |
+| `<state>.mp4` / `<state>.webm` | 浅色视频；有视频时该状态 `kind='video'`，画廊播视频 |
+| `<state>-dark.mp4` / `<state>-dark.webm` | 深色视频；深色界面时播，没有就回退浅色版 |
+| `<state>.webp` / `.png` / `.jpg` / `.gif` | 浅色静态帧；兼视频 `poster` |
+| `<state>-dark.webp` … | 深色静态帧 |
+| `base.webp` | 基础形象原图（v1，MD5 `2fb6bdc0c46ff85bdc77bc6285d26d9d`）；兼各视频无帧时的 `poster` |
+| `base-dark.webp` | 深色基础图 |
+
+当前头像的真实文件已从 `~/workspace/avatars/` 复制到该目录：7 个状态的 MP4
+（connecting、idle、making_something、milestone_level_up、waiting_for_subagents、
+waking、working；connecting/idle 共用一个文件，working/waiting_for_subagents 共用一个文件）、
+5 张静态帧（idle、making_something、milestone_level_up、waking、working）、深色版视频 5 个、
+深色基础图 1 张。listening / thinking / speaking / error 不是 Muse 独立槽位，本来就没有画面。
+目录不存在或没有可识别文件时，`getRuntimeAssets` 返回空 + warning；画廊对应卡片显示
+“暂无运行时画面”占位，不会用基础图冒充各状态帧。经 `GET /assets/runtime-media/…` 取文件。
+
+### 线上部署时 `getRuntimeAssets` 的适配（重要）
+
+`getRuntimeAssets` 是本地别名，线上不发布该动作。本地前端（`Workspace.tsx`）
+调它取真实运行时媒体；调用失败或返回空时，画廊运行时状态显示明确占位。
+所以**部署到线上时，构建器必须在适配层（`studio.ts`）实现 `getRuntimeAssets`，
+返回内置媒体的同形清单**（内置的五张真实静态帧、以及能内置的 MP4 视频，
+`url` 指向 artifact 内置文件），否则线上画廊运行时状态会显示“暂无运行时画面”，
+而不是旧版的五张内置帧。不要为了填满而用基础图冒充各状态帧。
 
 ## 三、本地 api.ts 与线上的差异
 
@@ -134,6 +164,8 @@ server/
 - `server/data/assets/<profileId>/<assetId>.<ext>` — 素材文件
 - `server/data/runtime-base.webp` — 可选：手动放置的运行时原图（供
   importRuntimeBase 用，不提交）
+- `server/data/runtime-media/` — 可选：真实运行时媒体（视频/静态帧/深色版，
+  供 getRuntimeAssets 用，不提交；命名见上节）
 
 表：character_profiles、character_settings、state_definitions、
 state_links（槽位链接）、assets、generation_jobs、activations、
@@ -188,7 +220,8 @@ rm -rf server/data
   与宽高正确且文件可经 /assets/ 取回、selectStateAsset 后激活成功且快照
   含 mode/baseAssetId/baseAssetSha256、归档/删除/删素材在激活与选中时被
   阻止、generateAsset 返回 `[MUSE_DEPENDENT]` 且不产生候选（失败记一条
-  error 任务）、getRuntimeAssets 返回 warning 空结果、clearAvatar 报错、
+  error 任务）、getRuntimeAssets 在 `server/data/runtime-media/` 为空时返回 warning 空结果、
+  有真实媒体时返回真实清单、clearAvatar 报错、
   exportProfile 格式 `muse-character-studio/profile@1`、importProfile
   往返、add/deleteStateDefinition 与 base 不可删、seedStudio 二次 no-op。
 - 补测（`/tmp/mcs-test2.py`，17 项）：16 项通过，1 项是测试期望本身写错

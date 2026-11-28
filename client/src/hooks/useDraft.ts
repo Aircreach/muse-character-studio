@@ -44,17 +44,3 @@ export function useDraft<T>(scope: string, id: string, initial: T) {
 
   return { value, setValue, clear, key }
 }
-
-/** Debounced version for text-heavy forms (settings editor). */
-export function useDebouncedDraft<T>(scope: string, id: string, initial: T, delayMs = 400) {
-  const draft = useDraft<T>(scope, id, initial)
-  const timer = useRef<number | null>(null)
-  const setValueDebounced = useCallback(
-    (next: T) => {
-      if (timer.current) window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => draft.setValue(next), delayMs)
-    },
-    [draft, delayMs],
-  )
-  return { ...draft, setValueDebounced }
-}

@@ -54,7 +54,7 @@ import {
   clearAvatarUnavailable,
   generateAssetUnavailable,
   readLocalRuntimeBase,
-  runtimeAssetsUnavailable,
+  readRuntimeMedia,
   RUNTIME_BASE_MD5,
   type RuntimeBaseFile,
 } from './muse'
@@ -452,7 +452,7 @@ const saveSettings = (ctx: ActionContext, input: unknown) => {
   const current = settingsRowToDomain(existing)
   let merged: CharacterSettings
   if (raw.settings !== undefined) {
-    // 线上形状：全量 settings 对象，32 字段 + customFields 全部必填。
+    // 线上形状：全量 settings 对象，33 字段 + customFields 全部必填。
     const full = parse(settingsObjectSchema, raw.settings, 'saveSettings.settings')
     merged = { ...current, ...full, id: current.id, profileId }
   } else if (raw.patch !== undefined) {
@@ -1027,7 +1027,11 @@ const listGenerationJobs = (ctx: ActionContext, input: unknown) => {
   return { jobs: detail.jobs }
 }
 
-const getRuntimeAssets = () => runtimeAssetsUnavailable()
+/**
+ * getRuntimeAssets（本地别名）：server/data/runtime-media/ 有真实媒体时
+ * 返回真实清单；没有时返回 warning 空结果（不编造），见 server/src/muse.ts。
+ */
+const getRuntimeAssets = (ctx: ActionContext) => readRuntimeMedia(ctx.projectRoot)
 
 const clearAvatar = () => {
   clearAvatarUnavailable()
@@ -1140,7 +1144,7 @@ export const LOCAL_ALIASES: Record<string, ActionHandler> = {
   getSettingsText,
   listActivations,
   listGenerationJobs,
-  getRuntimeAssets: () => getRuntimeAssets(),
+  getRuntimeAssets,
   clearAvatar: () => clearAvatar(),
   importRuntimeBase,
   verifyAssetIntegrity,

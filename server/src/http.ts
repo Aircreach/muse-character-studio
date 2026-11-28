@@ -6,6 +6,9 @@
 //                          与 client/src/api.ts 的 fetch 形状完全一致
 //   GET  /assets/<id>/…  → server/data/assets/ 下的素材文件
 //   GET  /assets/runtime/base.webp → client/src/assets/runtime/base.webp（若已放置）
+//   GET  /assets/runtime-media/<state>[ -dark].<ext> → server/data/runtime-media/ 下的
+//                          真实运行时媒体（视频/静态帧，深色版 -dark 后缀），供
+//                          getRuntimeAssets 返回的清单播放；目录不存在时 404。
 //
 // 数据持久化：SQLite 文件 server/data/studio.db（gitignored，不提交）。
 // 启动即建表；种子数据不自动写入，首次打开前端时 App 会调 seedStudio，
@@ -24,6 +27,7 @@ export const PROJECT_ROOT = resolve(import.meta.dir, '../..')
 export const DATA_DIR = join(PROJECT_ROOT, 'server/data')
 export const DB_PATH = join(DATA_DIR, 'studio.db')
 export const ASSETS_DIR = join(DATA_DIR, 'assets')
+export const RUNTIME_MEDIA_DIR = join(DATA_DIR, 'runtime-media')
 export const PORT = Number(process.env.MCS_PORT ?? 8787)
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -62,12 +66,26 @@ export function createServer(ctx: ActionContext) {
           db: DB_PATH,
           profiles: count,
           warning:
-            '本地后端：generateAsset / clearAvatar / getRuntimeAssets 依托 Muse，本地会明确报错或返回 warning，绝不伪造（见 server/BACKEND.md）。',
+            '本地后端：generateAsset / clearAvatar 依托 Muse，本地会明确报错；getRuntimeAssets 在 server/data/runtime-media/ 有真实媒体时返回真实清单，没有时返回 warning 空结果，绝不伪造（见 server/BACKEND.md）。',
         })
       }
 
       if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
         const rest = decodeURIComponent(url.pathname.slice('/assets/'.length))
+        // 真实运行时媒体：server/data/runtime-media/ 下的文件（见 muse.ts 命名约定）。
+        if (rest.startsWith('runtime-media/')) {
+          const filePath = resolve(RUNTIME_MEDIA_DIR, rest.slice('runtime-media/'.length))
+          if (!filePath.startsWith(RUNTIME_MEDIA_DIR) || !existsSync(filePath)) {
+            return jsonResponse(
+              { error: `运行时媒体不存在：${rest}（把真实文件放到 server/data/runtime-media/，见 server/BACKEND.md）` },
+              404,
+            )
+          }
+          const file = Bun.file(filePath)
+          return new Response(file, {
+            headers: { 'Content-Type': CONTENT_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream' },
+          })
+        }
         // 运行时原图：client/src/assets/runtime/base.webp（若用户已放置）。
         if (rest === 'runtime/base.webp') {
           const runtimeBase = join(PROJECT_ROOT, 'client/src/assets/runtime/base.webp')

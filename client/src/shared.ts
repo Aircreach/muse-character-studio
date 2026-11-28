@@ -151,6 +151,29 @@ export interface GenerationCandidate {
   createdAt: string
 }
 
+/**
+ * 一条真实运行时媒体（getRuntimeAssets 返回的 items 元素；与
+ * server/src/muse.ts 的 RuntimeMediaItem 同形）。kind 按文件类型定：
+ * 视频（mp4/webm）播，静态帧（webp/png/jpeg/gif）显示；label 永远
+ * 写明类型与来源，不拿基础图冒充各状态帧。
+ */
+export interface RuntimeMediaItem {
+  stateKey: string
+  kind: 'video' | 'image'
+  url: string
+  posterUrl: string | null
+  darkUrl: string | null
+  label: string
+}
+
+export interface RuntimeAssetsResult {
+  baseImageUrl: string | null
+  baseSha256: string | null
+  stateFrames: Record<string, string>
+  items: RuntimeMediaItem[]
+  warning?: string
+}
+
 export interface ActivationRecord {
   id: string
   profileId: string

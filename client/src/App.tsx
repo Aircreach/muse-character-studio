@@ -66,7 +66,7 @@ export default function App() {
       {view.kind === 'workspace' ? (
         <Workspace profileId={view.id} onBack={() => setView({ kind: 'library' })} onToast={push} />
       ) : view.kind === 'system' ? (
-        <SystemView />
+        <SystemView studioCapabilities={studio.data?.capabilities ?? null} />
       ) : (
         <LibraryView
           profiles={profiles}
@@ -85,6 +85,15 @@ export default function App() {
               qc.invalidateQueries({ queryKey: STUDIO_KEY })
             } catch (error) {
               push(`收藏失败：${error instanceof Error ? error.message : '未知错误'}`)
+            }
+          }}
+          onRestore={async (id) => {
+            try {
+              await api.restoreProfile({ id })
+              qc.invalidateQueries({ queryKey: STUDIO_KEY })
+              push('已恢复角色卡')
+            } catch (error) {
+              push(`恢复失败：${error instanceof Error ? error.message : '未知错误'}`)
             }
           }}
           onCreate={async () => {
@@ -114,6 +123,7 @@ function LibraryView(props: {
   setOnlyFavorites: (value: boolean) => void
   onOpen: (id: string) => void
   onToggleFavorite: (id: string) => void
+  onRestore: (id: string) => void
   onCreate: () => Promise<void>
 }) {
   const [creating, setCreating] = useState(false)
@@ -193,6 +203,7 @@ function LibraryView(props: {
                 isActive={profile.id === props.activeProfileId}
                 onOpen={() => props.onOpen(profile.id)}
                 onToggleFavorite={() => props.onToggleFavorite(profile.id)}
+                onRestore={profile.archivedAt ? () => props.onRestore(profile.id) : undefined}
               />
             ))}
           </div>
@@ -202,8 +213,25 @@ function LibraryView(props: {
   )
 }
 
-function SystemView() {
-  const caps = AUDITED_CAPABILITIES
+function SystemView({ studioCapabilities }: { studioCapabilities?: import('./shared').Capabilities | null }) {
+  /**
+   * 能力矩阵优先取服务端 getCapabilities 的实时值；取不到时回退到
+   * getStudio 带回的能力矩阵，再取不到才用前端写死的审计值，并标注来源。
+   * 旧版直接用写死值，改一处时另一处不会跟着变（见附录 A.10）。
+   */
+  const capsQuery = useQuery({
+    queryKey: ['capabilities'],
+    queryFn: () => api.getCapabilities({}),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+  const liveCaps = capsQuery.data?.capabilities ?? null
+  const caps = liveCaps ?? studioCapabilities ?? AUDITED_CAPABILITIES
+  const capsSource = liveCaps
+    ? '实时能力取自服务端 getCapabilities。'
+    : studioCapabilities
+      ? 'getCapabilities 未取到，显示 getStudio 返回的能力矩阵。'
+      : '未取到实时能力，显示上次审计值。'
   const rows: Array<[string, string]> = [
     ['模式', `${caps.mode}（单一基础形象）`],
     ['静态图片', caps.staticImage ? '支持' : '不支持'],
@@ -252,6 +280,7 @@ function SystemView() {
             </tbody>
           </table>
           <p className="field-hint">
+            {capsSource}
             idle、waking、working、making_something、milestone_level_up 由 Muse 运行时自动驱动，只读展示。
             listening、thinking、speaking、error 不是独立槽位。
           </p>
